@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a reproducible problem in Clovars
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: e.g. 0.1.0, commit SHA, or "dev (main)"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Desktop app
+        - Express API
+        - Auth / workspaces / roles
+        - Time tracking
+        - Reports
+        - Docs
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: 1. ... 2. ... 3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: role-check
+    attributes:
+      label: Roles tested (Owner / Admin / Member)
+      description: Most permission bugs only show up for one role. If relevant, note which roles you tested and whether you called the API directly.

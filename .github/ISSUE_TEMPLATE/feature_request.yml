@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a change within the Clovars roadmap (no invoicing or billing)
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow is painful today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What should happen instead? Note any server-side permission implications (Owner / Admin / Member).
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - v0.1.0 (auth, invites, clients/projects/tasks/tags, timer, reports)
+        - After v0.1.0 (timesheets, dashboard, time off, audit/import/export)
+        - Docs / tooling
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
