@@ -38,7 +38,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   }
 
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
     req.auth = payload;
     return next();
   } catch {

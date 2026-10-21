@@ -8,9 +8,9 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const Admin_model_1 = require("../api/models/Admin.model");
 dotenv_1.default.config();
-const MONGO_URI = process.env.MONGO_URI;
+const MONGO_URI = process.env.MONGODB_URI;
 if (!MONGO_URI) {
-    console.error('MONGO_URI is not defined in .env');
+    console.error('MONGODB_URI is not defined in .env');
     process.exit(1);
 }
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || 'admin@example.com';

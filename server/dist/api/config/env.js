@@ -10,14 +10,14 @@ dotenv_1.default.config();
 const envSchema = zod_1.z.object({
     NODE_ENV: zod_1.z.string().optional(),
     PORT: zod_1.z.string().optional(),
-    MONGO_URI: zod_1.z.string().min(1),
-    JWT_SECRET: zod_1.z.string().min(1),
+    MONGODB_URI: zod_1.z.string().min(1),
+    JWT_ACCESS_SECRET: zod_1.z.string().min(1),
     JWT_REFRESH_SECRET: zod_1.z.string().min(1),
     SMTP_HOST: zod_1.z.string().optional(),
     SMTP_PORT: zod_1.z.string().optional(),
     SMTP_USER: zod_1.z.string().optional(),
     SMTP_PASS: zod_1.z.string().optional(),
-    SMTP_FROM: zod_1.z.string().optional(),
+    MAIL_FROM: zod_1.z.string().optional(),
     COOKIE_SECURE: zod_1.z.string().optional(),
     COOKIE_SAMESITE: zod_1.z.enum(['strict', 'lax', 'none']).optional(),
     CORS_ORIGINS: zod_1.z.string().optional()

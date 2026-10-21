@@ -12,7 +12,7 @@ import {httpsRedirect} from './api/middleware/httpsRedirect';
 
 const app = express();
 
-const allowedOrigins = env.CORS_ORIGINS
+const configuredOrigins = env.CORS_ORIGINS
   ? env.CORS_ORIGINS.split(',').map(o => o.trim().replace(/\/+$/, ''))
   : ['http://localhost:3000'];
 
@@ -20,7 +20,18 @@ app.use(helmet());
 app.use(httpsRedirect);
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (configuredOrigins.includes(origin)) return callback(null, true);
+      // Allow any localhost dev server port in development.
+      if (
+        env.NODE_ENV !== 'production' &&
+        /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'x-csrf-token']

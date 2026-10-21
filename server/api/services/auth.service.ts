@@ -271,14 +271,16 @@ export const authService = {
       );
     }
 
+    const accountId = account._id.toString();
+
     const accessToken: string = jwt.sign(
-      {userId: account.id, type: userType},
-      env.JWT_SECRET,
+      {userId: accountId, type: userType},
+      env.JWT_ACCESS_SECRET,
       {expiresIn: '15m'}
     );
 
     const refreshToken = jwt.sign(
-      {userId: account.id, type: userType},
+      {userId: accountId, type: userType},
       env.JWT_REFRESH_SECRET,
       {expiresIn: '7d'}
     );
@@ -313,7 +315,7 @@ export const authService = {
 
       const accessToken = jwt.sign(
         {userId: account.id, type: payload.type},
-        env.JWT_SECRET,
+        env.JWT_ACCESS_SECRET,
         {expiresIn: '15m'}
       );
 

@@ -8,5 +8,5 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const env_1 = require("./env");
 async function connectDb() {
     mongoose_1.default.set('strictQuery', true);
-    await mongoose_1.default.connect(env_1.env.MONGO_URI);
+    await mongoose_1.default.connect(env_1.env.MONGODB_URI);
 }

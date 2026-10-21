@@ -16,13 +16,13 @@ function getSmtpConfig() {
   const portRaw = env.SMTP_PORT;
   const user = env.SMTP_USER;
   const pass = env.SMTP_PASS;
-  const from = env.SMTP_FROM;
+  const from = env.MAIL_FROM;
 
   if (!host || !portRaw || !user || !pass || !from) {
     throw new ApiError(
       500,
       ErrorCodes.SMTP_NOT_CONFIGURED,
-      'SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM in environment variables.'
+      'SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM in environment variables.'
     );
   }
 

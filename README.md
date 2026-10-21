@@ -95,7 +95,7 @@ Desktop (`desktop/.env`):
 VITE_API_URL=           # http://localhost:5000 in dev, your deployed Vercel HTTPS URL in production builds
 ```
 
-> Rename in progress: the server code currently reads `MONGO_URI` / `JWT_SECRET` / `JWT_REFRESH_SECRET` / `SMTP_FROM` (see `server/api/config/env.ts`). Docs use the canonical roadmap names above; code will be renamed to match. Until then, use the current code names in your local `server/.env`.
+> The server code uses the canonical names above (`MONGODB_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `MAIL_FROM`).
 
 Use a separate Atlas database for development (e.g. `clovars_dev`). Never point dev tooling or seeds at production.
 
