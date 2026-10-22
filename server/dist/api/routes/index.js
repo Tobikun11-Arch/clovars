@@ -5,7 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const auth_routes_1 = __importDefault(require("./auth.routes"));
+const workspace_routes_1 = __importDefault(require("./workspace.routes"));
+const invite_routes_1 = __importDefault(require("./invite.routes"));
 const router = (0, express_1.default)();
 router.use('/auth', auth_routes_1.default);
-// router.use('/products', productRoutes); -> if you have more routes, you can add them here
+router.use('/workspaces', workspace_routes_1.default);
+router.use('/invites', invite_routes_1.default);
 exports.default = router;

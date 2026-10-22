@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiRequest } from './api/client'
+import { WorkspacesSection } from './components/workspaces/WorkspacesSection'
 import type {
   AuthUser,
   ChangePasswordPayload,
@@ -11,7 +12,7 @@ import type {
 } from './types/auth'
 import './assets/main.css'
 
-type View = 'home' | 'login' | 'register' | 'verify' | 'forgot' | 'reset' | 'profile'
+type View = 'home' | 'login' | 'register' | 'verify' | 'forgot' | 'reset' | 'profile' | 'workspaces'
 
 function App(): React.JSX.Element {
   const [view, setView] = useState<View>('home')
@@ -191,6 +192,7 @@ function App(): React.JSX.Element {
             </>
           ) : (
             <>
+              <button onClick={() => setView('workspaces')}>Workspaces</button>
               <button onClick={() => setView('profile')}>Profile</button>
               <button onClick={() => void handleLogout()}>Logout</button>
             </>
@@ -231,6 +233,8 @@ function App(): React.JSX.Element {
         {view === 'profile' && user && (
           <ProfileForm onSubmit={handleChangePassword} loading={loading} />
         )}
+
+        {view === 'workspaces' && user && <WorkspacesSection currentUserId={user.id} />}
       </main>
 
       <footer className="app-footer">

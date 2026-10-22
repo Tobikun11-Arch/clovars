@@ -12,7 +12,7 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 **Backend (`server/`)**
 - [x] Express app, env validation, DB connection, error shape, middleware (auth, validation, sanitize, rate limit, CSRF)
 - [x] Auth routes skeleton (`/api/auth/*`)
-- [ ] Add missing route modules as features land (workspaces, clients, projects, tasks, tags, time entries, reports)
+- [~] Add missing route modules as features land (workspaces ✅, clients, projects, tasks, tags, time entries, reports)
 - [x] Keep CORS origins aligned with desktop dev (`http://localhost:5173`)
 
 **Frontend (`desktop/`)**
@@ -59,24 +59,24 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 **Goal:** Users can create/join workspaces and permissions are enforced server-side.
 
 **Backend**
-- [ ] Workspace model + CRUD (create, list mine, get, update, delete)
-- [ ] Membership model with roles: Owner, Admin, Member
-- [ ] Invite by email + invite code (create, accept, revoke, list)
-- [ ] Role-based authorization middleware (Owner/Admin/Member checks)
-- [ ] All permission checks on server only
+- [x] Workspace model + CRUD (create, list mine, get, update, delete)
+- [x] Membership model with roles: Owner, Admin, Member
+- [x] Invite by email + invite code (create, accept, revoke, list)
+- [x] Role-based authorization middleware (Owner/Admin/Member checks)
+- [x] All permission checks on server only
 
 **Frontend**
-- [ ] Workspace switcher / create workspace flow
-- [ ] Invite teammates (email + invite code) UI
-- [ ] Accept invite flow
-- [ ] Member list with role badges
-- [ ] Role-gated UI (hide actions not permitted, still server-enforced)
+- [x] Workspace switcher / create workspace flow
+- [x] Invite teammates (email + invite code) UI
+- [x] Accept invite flow
+- [x] Member list with role badges
+- [x] Role-gated UI (hide actions not permitted, still server-enforced)
 
 **Verification**
-- [ ] Create workspace → appears in list; creator is Owner
-- [ ] Invite by email/code → invitee joins as Member
-- [ ] Admin can invite/manage members; Member cannot
-- [ ] Cross-workspace data access returns 403/404
+- [x] Create workspace → appears in list; creator is Owner
+- [x] Invite by email/code → invitee joins as Member
+- [x] Admin can invite/manage members; Member cannot
+- [x] Cross-workspace data access returns 403/404
 
 ---
 
