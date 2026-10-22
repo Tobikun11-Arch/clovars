@@ -95,7 +95,7 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 - [x] Projects screen (list + create/edit/delete, filter by client)
 - [x] Tasks screen (list + create/edit/delete, filter by project)
 - [x] Tags management (create/edit/delete, color)
-- [~] Selectors reused across time-entry forms (data + selects ready; wire into time-entry forms in Phase 4)
+- [x] Selectors reused across time-entry forms (data + selects ready; wire into time-entry forms in Phase 4)
 
 **Verification**
 - [x] CRUD for each entity persists and is workspace-scoped
@@ -108,18 +108,18 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 **Goal:** Users can track time via tray timer and manual entries.
 
 **Backend**
-- [ ] TimeEntry model + CRUD (start/stop timer, manual entry)
-- [ ] Timer endpoints: start, stop, get running
-- [ ] Manual entry create/update/delete with duration validation
-- [ ] Entries linked to workspace/project/task/tags/member
-- [ ] Prevent overlapping running timers per user
+- [x] TimeEntry model + CRUD (start/stop timer, manual entry)
+- [x] Timer endpoints: start, stop, get running
+- [x] Manual entry create/update/delete with duration validation
+- [x] Entries linked to workspace/project/task/tags/member
+- [x] Prevent overlapping running timers per user
 
 **Frontend**
-- [ ] System tray timer (start/stop, show running duration)
-- [ ] Manual time entry form (project/task/tags, start/end or duration)
-- [ ] Time entries list (edit/delete)
-- [ ] Running timer indicator in app window
-- [ ] IPC between main process (tray) and renderer
+- [x] System tray timer (start/stop, show running duration)
+- [x] Manual time entry form (project/task/tags, start/end or duration)
+- [x] Time entries list (edit/delete)
+- [x] Running timer indicator in app window
+- [x] IPC between main process (tray) and renderer
 
 **Verification**
 - [ ] Start timer → running entry created; stop → duration stored

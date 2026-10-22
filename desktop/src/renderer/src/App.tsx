@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { apiRequest } from './api/client'
 import { WorkspacesSection } from './components/workspaces/WorkspacesSection'
 import { WorkSection } from './components/work/WorkSection'
+import { TimeSection } from './components/time/TimeSection'
+import { useRunningTimer } from './hooks/useRunningTimer'
+import { formatDuration } from './utils/time'
 import type {
   AuthUser,
   ChangePasswordPayload,
@@ -14,7 +17,16 @@ import type {
 import './assets/main.css'
 
 type View =
-  'home' | 'login' | 'register' | 'verify' | 'forgot' | 'reset' | 'profile' | 'workspaces' | 'work'
+  | 'home'
+  | 'login'
+  | 'register'
+  | 'verify'
+  | 'forgot'
+  | 'reset'
+  | 'profile'
+  | 'workspaces'
+  | 'work'
+  | 'time'
 
 function App(): React.JSX.Element {
   const [view, setView] = useState<View>('home')
@@ -23,6 +35,7 @@ function App(): React.JSX.Element {
   const [info, setInfo] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [verifyEmail, setVerifyEmail] = useState('')
+  const timer = useRunningTimer({ enabled: Boolean(user), onError: setError })
 
   useEffect(() => {
     let cancelled = false
@@ -175,6 +188,7 @@ function App(): React.JSX.Element {
     } catch {
       // ignore
     } finally {
+      timer.clear()
       setUser(null)
       setView('home')
       setLoading(false)
@@ -184,7 +198,30 @@ function App(): React.JSX.Element {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <h1>Clovars</h1>
+        <div className="app-brand">
+          <h1>Clovars</h1>
+          {user && timer.running && (
+            <div className={timer.running.isPaused ? 'header-timer paused' : 'header-timer'}>
+              <span className={timer.running.isPaused ? 'timer-dot paused' : 'timer-dot'} />
+              <span className="header-timer-clock">{formatDuration(timer.elapsedSeconds)}</span>
+              <span className="header-timer-label">
+                {timer.running.projectName ??
+                  timer.running.description ??
+                  timer.running.workspaceName ??
+                  'Tracking time'}
+              </span>
+              <button
+                type="button"
+                onClick={() => void (timer.running?.isPaused ? timer.resume() : timer.pause())}
+              >
+                {timer.running.isPaused ? 'Resume' : 'Pause'}
+              </button>
+              <button type="button" onClick={() => void timer.stop()}>
+                Stop
+              </button>
+            </div>
+          )}
+        </div>
         <nav>
           <button onClick={() => setView('home')}>Home</button>
           {!user ? (
@@ -194,6 +231,7 @@ function App(): React.JSX.Element {
             </>
           ) : (
             <>
+              <button onClick={() => setView('time')}>Time</button>
               <button onClick={() => setView('work')}>Work</button>
               <button onClick={() => setView('workspaces')}>Workspaces</button>
               <button onClick={() => setView('profile')}>Profile</button>
@@ -240,6 +278,14 @@ function App(): React.JSX.Element {
         {view === 'workspaces' && user && <WorkspacesSection currentUserId={user.id} />}
 
         {view === 'work' && user && <WorkSection />}
+
+        {view === 'time' && user && (
+          <TimeSection
+            running={timer.running}
+            runningElapsedSeconds={timer.elapsedSeconds}
+            onRunningChange={timer.applyRunning}
+          />
+        )}
       </main>
 
       <footer className="app-footer">

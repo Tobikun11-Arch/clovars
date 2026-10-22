@@ -2,6 +2,7 @@ import {clientRepository} from '../repositories/client.repository';
 import {projectRepository} from '../repositories/project.repository';
 import {taskRepository} from '../repositories/task.repository';
 import {tagRepository} from '../repositories/tag.repository';
+import {timeEntryRepository} from '../repositories/timeEntry.repository';
 import {ApiError} from '../utils/error';
 import {ErrorCodes} from '../constants/errorCodes';
 import type {ClientDocument} from '../models/Client.model';
@@ -319,7 +320,9 @@ export const projectService = {
     }
 
     // Tasks belong to a project, so remove them together with the project
+    // Time entries keep their history but lose the deleted project/task links
     await taskRepository.deleteByProject(projectId);
+    await timeEntryRepository.clearProject(projectId);
     await projectRepository.delete(projectId);
   }
 };
@@ -467,6 +470,8 @@ export const taskService = {
       );
     }
 
+    // Keep the time entries but detach them from the deleted task
+    await timeEntryRepository.clearTask(taskId);
     await taskRepository.delete(taskId);
   }
 };
@@ -551,6 +556,8 @@ export const tagService = {
       );
     }
 
+    // Keep the time entries but remove the deleted tag from them
+    await timeEntryRepository.pullTag(tagId);
     await tagRepository.delete(tagId);
   }
 };

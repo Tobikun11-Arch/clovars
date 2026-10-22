@@ -5,6 +5,7 @@ import {clientRepository} from '../repositories/client.repository';
 import {projectRepository} from '../repositories/project.repository';
 import {taskRepository} from '../repositories/task.repository';
 import {tagRepository} from '../repositories/tag.repository';
+import {timeEntryRepository} from '../repositories/timeEntry.repository';
 import {WorkspaceRole} from '../models/Membership.model';
 import {ApiError} from '../utils/error';
 import {ErrorCodes} from '../constants/errorCodes';
@@ -134,6 +135,7 @@ export const workspaceService = {
   async deleteWorkspace(workspaceId: string): Promise<void> {
     await membershipRepository.deleteByWorkspace(workspaceId);
     await inviteRepository.deleteByWorkspace(workspaceId);
+    await timeEntryRepository.deleteByWorkspace(workspaceId);
     await taskRepository.deleteByWorkspace(workspaceId);
     await projectRepository.deleteByWorkspace(workspaceId);
     await clientRepository.deleteByWorkspace(workspaceId);

@@ -16,13 +16,10 @@ import {
   createTagDto,
   updateTagDto
 } from '../dtos/work.dto';
-import {loadWorkspace} from '../middleware/workspaceAuth';
 import {authActionLimiter, authReadLimiter} from '../middleware/rateLimit';
 
 // mergeParams lets these routes read :workspaceId from the parent router
 const router = Router({mergeParams: true});
-
-router.use(loadWorkspace);
 
 // clients
 router.get('/clients', authReadLimiter, clientController.list);

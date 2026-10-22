@@ -15,6 +15,7 @@ import {
 } from '../middleware/workspaceAuth';
 import {authActionLimiter, authReadLimiter} from '../middleware/rateLimit';
 import workRoutes from './work.routes';
+import timeEntryRoutes from './timeEntry.routes';
 
 const router = Router();
 
@@ -98,7 +99,7 @@ router.delete(
   inviteController.revoke
 );
 
-// clients, projects, tasks, tags (all workspace members)
-router.use('/:workspaceId', workRoutes);
+// clients, projects, tasks, tags, time entries (all workspace members)
+router.use('/:workspaceId', loadWorkspace, workRoutes, timeEntryRoutes);
 
 export default router;
