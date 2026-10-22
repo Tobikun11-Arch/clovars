@@ -12,7 +12,7 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 **Backend (`server/`)**
 - [x] Express app, env validation, DB connection, error shape, middleware (auth, validation, sanitize, rate limit, CSRF)
 - [x] Auth routes skeleton (`/api/auth/*`)
-- [~] Add missing route modules as features land (workspaces ✅, clients ✅, projects ✅, tasks ✅, tags ✅, time entries, reports)
+- [~] Add missing route modules as features land (workspaces ✅, clients ✅, projects ✅, tasks ✅, tags ✅, time entries ✅, reports)
 - [x] Keep CORS origins aligned with desktop dev (`http://localhost:5173`)
 
 **Frontend (`desktop/`)**
@@ -122,52 +122,61 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 - [x] IPC between main process (tray) and renderer
 
 **Verification**
-- [ ] Start timer → running entry created; stop → duration stored
-- [ ] Manual entry with valid range saves correctly
-- [ ] Overlapping timer attempt rejected
-- [ ] Entries only visible within own workspace
+- [x] Start timer → running entry created; stop → duration stored
+- [x] Manual entry with valid range saves correctly
+- [x] Overlapping timer attempt rejected
+- [x] Entries only visible within own workspace
 
 ---
 
 ## Phase 5 — Reports & CSV Export
-**Goal:** Users can view and export time reports.
+**Goal:** Time reports are generated automatically from tracked entries — members never submit or send a report. Members see their own time; workspace Admins/Owners automatically see all members' time.
+
+**Access model**
+- Members only track time; there is no "send report" action.
+- Reports are generated on demand from `TimeEntry` data.
+- Member → own reports only.
+- Admin/Owner → every member's reports in that workspace, automatically.
 
 **Backend**
-- [ ] Report aggregation endpoint (group by project / member / date)
-- [ ] Filters: date range, project, member, tag
+- [ ] Report aggregation endpoint (group by project / member / date), role-scoped by membership
+- [ ] Filters: date range, project, member (Admin/Owner only), tag
 - [ ] Totals and per-group durations
-- [ ] CSV export endpoint (streamed file)
+- [ ] CSV export endpoint (streamed file) with the same role scoping
 
 **Frontend**
 - [ ] Reports screen with grouping selector and filters
+- [ ] Admin/Owner view shows all workspace members automatically; Member view shows own time only
 - [ ] Summary table + totals
 - [ ] Export to CSV (download/save dialog)
 - [ ] Empty state and loading states
+- [ ] Reports refresh automatically from time entries (no submit/send action)
 
 **Verification**
 - [ ] Report totals match sum of time entries
+- [ ] Member sees only own reports; Admin/Owner sees all workspace members automatically
 - [ ] Grouping by project/member/date produces correct buckets
 - [ ] CSV opens correctly and matches on-screen data
 
 ---
 
 ## Phase 6 — Weekly Timesheets & Approvals (Planned)
-**Goal:** Weekly submission and approval workflow.
+**Goal:** Weekly reports are generated automatically. Admins/Owners review and approve them; members do not submit timesheets manually.
 
 **Backend**
-- [ ] Timesheet model (week range, status: draft/submitted/approved/rejected)
-- [ ] Submit / approve / reject endpoints
+- [ ] Weekly timesheet auto-generation from time entries (week range, status: open/approved/rejected)
+- [ ] Admin/Owner approve / reject endpoints (no member "submit" endpoint)
 - [ ] Approval permissions (Admin/Owner)
-- [ ] Notifications (email) on submit/approve/reject
+- [ ] Notifications (email) on approve/reject
 
 **Frontend**
-- [ ] Weekly timesheet view
-- [ ] Submit for approval
-- [ ] Approver inbox (approve/reject with comment)
+- [ ] Weekly timesheet view, auto-populated from tracked time
+- [ ] Admin/Owner inbox with members' weekly reports already available
+- [ ] No "Submit for approval" action for members
 - [ ] Status badges and history
 
 **Verification**
-- [ ] Member submits week → status submitted
+- [ ] Weekly timesheet appears automatically for members and Admins/Owners
 - [ ] Admin approves/rejects → status updates + email sent
 - [ ] Approved timesheet locks edits (or versioning) as designed
 
