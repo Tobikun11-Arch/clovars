@@ -19,5 +19,8 @@ export const validate =
       return next(new ApiError(400, ErrorCodes.VALIDATION_ERROR, message, flattened));
     }
 
+    // Use the parsed payload so defaults apply and unknown keys are stripped
+    req.body = result.data;
+
     next();
   };

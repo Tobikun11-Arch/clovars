@@ -12,7 +12,7 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 **Backend (`server/`)**
 - [x] Express app, env validation, DB connection, error shape, middleware (auth, validation, sanitize, rate limit, CSRF)
 - [x] Auth routes skeleton (`/api/auth/*`)
-- [~] Add missing route modules as features land (workspaces ✅, clients, projects, tasks, tags, time entries, reports)
+- [~] Add missing route modules as features land (workspaces ✅, clients ✅, projects ✅, tasks ✅, tags ✅, time entries, reports)
 - [x] Keep CORS origins aligned with desktop dev (`http://localhost:5173`)
 
 **Frontend (`desktop/`)**
@@ -84,23 +84,23 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 **Goal:** Organize work entities per workspace.
 
 **Backend**
-- [ ] Client model + CRUD (workspace-scoped)
-- [ ] Project model + CRUD (linked to client, optional)
-- [ ] Task model + CRUD (linked to project)
-- [ ] Tag model + CRUD (workspace-scoped)
-- [ ] Validation DTOs (Zod) for all bodies
+- [x] Client model + CRUD (workspace-scoped)
+- [x] Project model + CRUD (linked to client, optional)
+- [x] Task model + CRUD (linked to project)
+- [x] Tag model + CRUD (workspace-scoped)
+- [x] Validation DTOs (Zod) for all bodies
 
 **Frontend**
-- [ ] Clients screen (list + create/edit/delete)
-- [ ] Projects screen (list + create/edit/delete, filter by client)
-- [ ] Tasks screen (list + create/edit/delete, filter by project)
-- [ ] Tags management (create/edit/delete, color)
-- [ ] Selectors reused across time-entry forms
+- [x] Clients screen (list + create/edit/delete)
+- [x] Projects screen (list + create/edit/delete, filter by client)
+- [x] Tasks screen (list + create/edit/delete, filter by project)
+- [x] Tags management (create/edit/delete, color)
+- [~] Selectors reused across time-entry forms (data + selects ready; wire into time-entry forms in Phase 4)
 
 **Verification**
-- [ ] CRUD for each entity persists and is workspace-scoped
-- [ ] Deleting a client/project handles linked data (cascade or block) as designed
-- [ ] Validation errors return `400` with `code`/`message`
+- [x] CRUD for each entity persists and is workspace-scoped
+- [x] Deleting a client/project handles linked data (cascade or block) as designed
+- [x] Validation errors return `400` with `code`/`message`
 
 ---
 

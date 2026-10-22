@@ -14,6 +14,7 @@ import {
   requireWorkspaceRole
 } from '../middleware/workspaceAuth';
 import {authActionLimiter, authReadLimiter} from '../middleware/rateLimit';
+import workRoutes from './work.routes';
 
 const router = Router();
 
@@ -96,5 +97,8 @@ router.delete(
   requireWorkspaceRole('admin'),
   inviteController.revoke
 );
+
+// clients, projects, tasks, tags (all workspace members)
+router.use('/:workspaceId', workRoutes);
 
 export default router;

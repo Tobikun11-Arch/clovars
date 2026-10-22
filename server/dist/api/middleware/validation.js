@@ -14,6 +14,8 @@ const validate = (schema) => (req, _res, next) => {
         const message = firstFieldError ?? firstFormError ?? 'Invalid request';
         return next(new error_1.ApiError(400, errorCodes_1.ErrorCodes.VALIDATION_ERROR, message, flattened));
     }
+    // Use the parsed payload so defaults apply and unknown keys are stripped
+    req.body = result.data;
     next();
 };
 exports.validate = validate;

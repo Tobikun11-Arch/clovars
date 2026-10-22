@@ -26,14 +26,14 @@ exports.authLimiter = makeLimiter({
 });
 exports.authActionLimiter = makeLimiter({
     windowMs: 15 * 60 * 1000,
-    max: 30,
+    max: 200,
     standardHeaders: true,
     legacyHeaders: false,
     handler: rateLimitHandler
 });
 exports.authReadLimiter = makeLimiter({
     windowMs: 15 * 60 * 1000,
-    max: 50,
+    max: 600,
     standardHeaders: true,
     legacyHeaders: false,
     handler: rateLimitHandler

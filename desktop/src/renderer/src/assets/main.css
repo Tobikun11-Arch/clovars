@@ -194,3 +194,94 @@ button:disabled {
   flex-direction: column;
   gap: 12px;
 }
+
+.work-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.tab {
+  background-color: transparent;
+  border: 1px solid var(--ev-c-gray-3);
+}
+
+.tab.active {
+  background-color: var(--ev-c-gray-2);
+  border-color: var(--ev-c-gray-1);
+}
+
+.work-panel {
+  margin-top: 8px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.inline-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  max-width: 280px;
+  margin: 12px 0;
+}
+
+.work-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.work-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ev-c-text-2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-background-mute);
+}
+
+.work-name {
+  color: var(--ev-c-text-1);
+  font-weight: 600;
+}
+
+.row-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.tag-chip {
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--ev-c-text-3);
+  font-size: 13px;
+}
