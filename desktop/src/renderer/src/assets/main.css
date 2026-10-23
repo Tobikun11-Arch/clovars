@@ -2541,6 +2541,7 @@ html.mini-timer-root #root {
   overflow: hidden;
   height: 100%;
   min-height: 0;
+  padding: 8px;
 }
 
 .mini-timer {
@@ -2549,8 +2550,8 @@ html.mini-timer-root #root {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 200px;
-  height: 200px;
+  width: 100%;
+  height: 100%;
   padding: 16px 12px 12px;
   background: color-mix(in srgb, var(--surface) 96%, transparent);
   border: 1px solid var(--border);
@@ -2559,6 +2560,29 @@ html.mini-timer-root #root {
   backdrop-filter: blur(10px);
   user-select: none;
   -webkit-app-region: drag;
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.mini-timer--transparent {
+  background: color-mix(in srgb, var(--surface) 20%, transparent);
+  border-color: color-mix(in srgb, var(--border) 30%, transparent);
+  box-shadow: 0 4px 16px rgb(15 23 42 / 0.08);
+}
+
+.mini-timer--transparent .mini-timer__clock {
+  color: #f97316;
+}
+
+.mini-timer--transparent .mini-timer__status {
+  color: #fb923c;
+}
+
+.mini-timer--transparent .mini-timer__project {
+  color: #fdba74;
+}
+
+.mini-timer--transparent .mini-timer__task {
+  color: #fed7aa;
 }
 
 .mini-timer__close,
@@ -2643,6 +2667,86 @@ html.mini-timer-root #root {
 .mini-timer__actions .btn {
   padding: 4px 8px;
   font-size: 11px;
+}
+
+.mini-timer__resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  -webkit-app-region: no-drag;
+  z-index: 10;
+  background: transparent;
+}
+
+.mini-timer__resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.mini-timer__resize-handle:hover::after {
+  opacity: 1;
+  border-color: var(--text);
+}
+
+.mini-timer__maximize {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.mini-timer__maximize:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.mini-timer__edit {
+  position: absolute;
+  top: 4px;
+  left: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.mini-timer__edit:hover {
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 @media (prefers-reduced-motion: reduce) {

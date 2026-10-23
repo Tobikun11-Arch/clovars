@@ -493,11 +493,14 @@ export const timeEntryService = {
       );
     }
 
-    if (entry.isRunning) {
+    // Allow updating metadata even if running, but not time fields
+    const hasTimeChanges = data.startTime !== undefined || data.endTime !== undefined;
+
+    if (entry.isRunning && hasTimeChanges) {
       throw new ApiError(
         409,
         ErrorCodes.TIME_ENTRY_RUNNING,
-        'Stop the timer before editing this entry'
+        'Stop the timer before editing time fields'
       );
     }
 

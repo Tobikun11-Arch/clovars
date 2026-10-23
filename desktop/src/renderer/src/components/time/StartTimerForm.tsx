@@ -64,6 +64,7 @@ export function StartTimerForm({
         disabled={loading}
         onChange={setTaskId}
         onCreateTask={onCreateTask}
+        alwaysShowCreate={true}
       />
 
       <Field label="Description">

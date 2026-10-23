@@ -9,6 +9,7 @@ interface TaskPickerProps {
   disabled: boolean
   onChange: (taskId: string) => void
   onCreateTask: (projectId: string, name: string) => Promise<Task | null>
+  alwaysShowCreate?: boolean
 }
 
 export function TaskPicker({
@@ -17,13 +18,14 @@ export function TaskPicker({
   selectedTaskId,
   disabled,
   onChange,
-  onCreateTask
+  onCreateTask,
+  alwaysShowCreate = false
 }: TaskPickerProps): React.JSX.Element {
   const [newTaskName, setNewTaskName] = useState('')
   const [creating, setCreating] = useState(false)
 
   const visibleTasks = projectId ? tasks.filter((task) => task.projectId === projectId) : []
-  const canCreateTask = Boolean(projectId) && visibleTasks.length === 0
+  const canCreateTask = Boolean(projectId) && (visibleTasks.length === 0 || alwaysShowCreate)
   const trimmedName = newTaskName.trim()
 
   async function handleCreateTask(): Promise<void> {
@@ -63,7 +65,7 @@ export function TaskPicker({
           <Input
             value={newTaskName}
             maxLength={200}
-            placeholder="This project has no tasks — add one"
+            placeholder={visibleTasks.length === 0 ? 'This project has no tasks — add one' : 'Create new task'}
             disabled={disabled || creating}
             onChange={(event) => setNewTaskName(event.target.value)}
             onKeyDown={(event) => {

@@ -32,6 +32,7 @@ export interface ClovarsApi {
   getMiniTimerState: () => Promise<TimerState>
   // Window state
   onMainWindowState: (callback: (state: { minimized: boolean; visible: boolean; focused: boolean }) => void) => () => void
+  onMiniTimerResized: (callback: (size: { width: number; height: number }) => void) => () => void
   showToast: (message: string, type?: 'info' | 'success' | 'error') => void
   on: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void) => void
   removeListener: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void) => void

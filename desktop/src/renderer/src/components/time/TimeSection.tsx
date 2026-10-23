@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import {
   createManualTimeEntry,
@@ -103,6 +103,23 @@ export function TimeSection({
     }
   }, [activeId, runningId, runningPaused, reloadKey])
 
+  // Listen for edit request from mini timer
+  useEffect(() => {
+    if (!window.api) return
+
+    const editListener = (_event: Electron.IpcRendererEvent, state: unknown) => {
+      if (running && state && typeof state === 'object' && 'id' in state) {
+        handleEdit(running)
+      }
+    }
+
+    window.api?.on('mini-timer:edit', editListener)
+
+    return () => {
+      window.api?.removeListener('mini-timer:edit', editListener)
+    }
+  }, [running])
+
   async function handleStart(input: StartTimerInput): Promise<void> {
     if (!activeId) return
 
@@ -169,8 +186,13 @@ export function TimeSection({
     setLoading(true)
     try {
       if (editingEntry) {
-        await updateTimeEntry(activeId, editingEntry.id, input)
+        const updated = await updateTimeEntry(activeId, editingEntry.id, input)
         showToast('Time entry updated.', 'success')
+
+        // If editing a running timer, update the running state
+        if (editingEntry.isRunning) {
+          onRunningChange(updated)
+        }
       } else {
         const entry = await createManualTimeEntry(activeId, input)
         showToast(`Added ${formatDurationShort(entry.durationSeconds)}.`, 'success')
@@ -234,10 +256,10 @@ export function TimeSection({
     setFormVersion((version) => version + 1)
   }
 
-  function handleEdit(entry: TimeEntry): void {
+  const handleEdit = useCallback((entry: TimeEntry): void => {
     setEditingEntry(entry)
     setDrawerOpen(true)
-  }
+  }, [])
 
   function closeDrawer(): void {
     setDrawerOpen(false)
@@ -332,6 +354,13 @@ export function TimeSection({
                   )}
 
                   <div className="timer-bar__actions">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleEdit(running)}
+                    >
+                      Edit
+                    </Button>
                     <Button
                       variant={running.isPaused ? 'primary' : 'secondary'}
                       loading={loading}
@@ -433,8 +462,10 @@ export function TimeSection({
 
       <Drawer
         open={drawerOpen}
-        title="Edit time entry"
-        description="Adjust the details, then save your changes."
+        title={editingEntry?.isRunning ? 'Edit running timer' : 'Edit time entry'}
+        description={editingEntry?.isRunning
+          ? 'You can change the project, task, tags, and description while the timer is running.'
+          : 'Adjust the details, then save your changes.'}
         onClose={closeDrawer}
       >
         <ManualEntryForm
@@ -447,6 +478,7 @@ export function TimeSection({
           onSubmit={handleManualSubmit}
           onCancelEdit={closeDrawer}
           onCreateTask={handleCreateTask}
+          disableTimeFields={editingEntry?.isRunning}
         />
       </Drawer>
     </>

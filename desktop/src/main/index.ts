@@ -76,8 +76,25 @@ function showWindow(): void {
     return
   }
 
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore()
+  }
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize()
+  }
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function maximizeWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow()
+    return
+  }
+
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
+  mainWindow.maximize()
   mainWindow.focus()
 }
 
@@ -165,6 +182,7 @@ function updateTray(): void {
   template.push(
     { type: 'separator' },
     { label: 'Show Clovars', click: () => showWindow() },
+    { label: 'Maximize Clovars', click: () => maximizeWindow() },
     {
       label: isMiniTimerVisible() ? 'Hide Mini Timer' : 'Show Mini Timer',
       click: () => toggleMiniTimerWindow()
@@ -197,7 +215,15 @@ function createTray(): void {
 
   const trayIcon = nativeImage.createFromPath(icon).resize({ width: 16, height: 16 })
   tray = new Tray(trayIcon)
-  tray.on('click', () => showWindow())
+  tray.on('click', () => {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isMinimized()) {
+      mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    } else {
+      showWindow()
+    }
+  })
   updateTray()
 
   // Keep the tray status current while a timer is running.
@@ -253,10 +279,18 @@ function createWindow(): void {
 
   // Broadcast main window state changes
   mainWindow.on('minimize', () => {
+    // Show mini timer when main window is minimized if timer is running
+    if (timerState.running && miniTimerAutoShow) {
+      createMiniTimerWindow()
+    }
     broadcastMainWindowState()
   })
 
   mainWindow.on('restore', () => {
+    // Hide mini timer when main window is restored
+    if (isMiniTimerVisible()) {
+      hideMiniTimerWindow()
+    }
     broadcastMainWindowState()
   })
 
@@ -304,12 +338,16 @@ function createMiniTimerWindow(): void {
   miniTimerWindow = new BrowserWindow({
     width: 200,
     height: 200,
+    minWidth: 150,
+    minHeight: 150,
+    maxWidth: 400,
+    maxHeight: 400,
     x,
     y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    resizable: false,
+    resizable: true,
     skipTaskbar: true,
     minimizable: false,
     maximizable: false,
@@ -339,6 +377,14 @@ function createMiniTimerWindow(): void {
     if (miniTimerWindow) {
       const [x, y] = miniTimerWindow.getPosition()
       miniTimerPosition = { x, y }
+    }
+  })
+
+  miniTimerWindow.on('resized', () => {
+    if (miniTimerWindow) {
+      const [width, height] = miniTimerWindow.getSize()
+      // Send new size to renderer to adjust component scaling
+      miniTimerWindow.webContents.send('mini-timer:resized', { width, height })
     }
   })
 
@@ -465,6 +511,14 @@ app.whenReady().then(() => {
     }
   })
 
+  // Forward mini timer edit request to main window
+  ipcMain.on('mini-timer:edit', (_event, state: unknown) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      showWindow()
+      mainWindow.webContents.send('mini-timer:edit', state)
+    }
+  })
+
   // Mini timer window IPC handlers
   ipcMain.on('mini-timer:command', (_event, command: TimerCommand) => {
     sendTimerCommand(command)
@@ -485,6 +539,24 @@ app.whenReady().then(() => {
   ipcMain.on('mini-timer:set-auto-show', (_event, enabled: unknown) => {
     if (typeof enabled === 'boolean') {
       setMiniTimerAutoShow(enabled)
+    }
+  })
+
+  ipcMain.on('mini-timer:resize', (_event, size: unknown) => {
+    if (
+      miniTimerWindow &&
+      !miniTimerWindow.isDestroyed() &&
+      size &&
+      typeof size === 'object' &&
+      'width' in size &&
+      'height' in size &&
+      typeof size.width === 'number' &&
+      typeof size.height === 'number'
+    ) {
+      const { width, height } = size
+      const clampedWidth = Math.max(150, Math.min(400, width))
+      const clampedHeight = Math.max(150, Math.min(400, height))
+      miniTimerWindow.setSize(clampedWidth, clampedHeight)
     }
   })
 

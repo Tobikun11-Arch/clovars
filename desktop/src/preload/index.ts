@@ -83,6 +83,18 @@ const api = {
       ipcRenderer.removeListener('main-window:state', listener)
     }
   },
+  onMiniTimerResized: (callback: (size: { width: number; height: number }) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void => {
+      const size = args[0] as { width: number; height: number }
+      callback(size)
+    }
+
+    ipcRenderer.on('mini-timer:resized', listener)
+
+    return () => {
+      ipcRenderer.removeListener('mini-timer:resized', listener)
+    }
+  },
   showToast: (message: string, type: 'info' | 'success' | 'error' = 'info'): void => {
     ipcRenderer.send('toast:show', { message, type })
   },

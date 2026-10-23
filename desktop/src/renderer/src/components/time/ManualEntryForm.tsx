@@ -22,6 +22,7 @@ interface ManualEntryFormProps {
   onCancelEdit: () => void
   onCreateTask: (projectId: string, name: string) => Promise<Task | null>
   showCancel?: boolean
+  disableTimeFields?: boolean
 }
 
 export function ManualEntryForm({
@@ -33,7 +34,8 @@ export function ManualEntryForm({
   onSubmit,
   onCancelEdit,
   onCreateTask,
-  showCancel = true
+  showCancel = true,
+  disableTimeFields = false
 }: ManualEntryFormProps): React.JSX.Element {
   const [projectId, setProjectId] = useState(entry?.projectId ?? '')
   const [taskId, setTaskId] = useState(entry?.taskId ?? '')
@@ -58,32 +60,48 @@ export function ManualEntryForm({
     event.preventDefault()
     setFormError(null)
 
-    if (!start || !end) {
-      setFormError('Start and end times are required.')
-      return
+    // Skip time validation if editing a running timer
+    if (!disableTimeFields) {
+      if (!start || !end) {
+        setFormError('Start and end times are required.')
+        return
+      }
+
+      if (durationSeconds <= 0) {
+        setFormError('End time must be after start time.')
+        return
+      }
+
+      const startDate = new Date(start)
+      const endDate = new Date(end)
+
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+        setFormError('Enter valid start and end times.')
+        return
+      }
     }
 
-    if (durationSeconds <= 0) {
-      setFormError('End time must be after start time.')
-      return
+    // For running timers, only submit metadata (no time fields)
+    if (disableTimeFields && entry?.isRunning) {
+      void onSubmit({
+        projectId: projectId || null,
+        taskId: taskId || null,
+        tagIds,
+        description: description.trim() || null
+      })
+    } else {
+      const startDate = new Date(start)
+      const endDate = new Date(end)
+
+      void onSubmit({
+        projectId: projectId || null,
+        taskId: taskId || null,
+        tagIds,
+        description: description.trim() || null,
+        startTime: startDate.toISOString(),
+        endTime: endDate.toISOString()
+      })
     }
-
-    const startDate = new Date(start)
-    const endDate = new Date(end)
-
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      setFormError('Enter valid start and end times.')
-      return
-    }
-
-    void onSubmit({
-      projectId: projectId || null,
-      taskId: taskId || null,
-      tagIds,
-      description: description.trim() || null,
-      startTime: startDate.toISOString(),
-      endTime: endDate.toISOString()
-    })
 
     // Reset form if creating new entry (not editing)
     if (!entry) {
@@ -116,6 +134,7 @@ export function ManualEntryForm({
         disabled={loading}
         onChange={setTaskId}
         onCreateTask={onCreateTask}
+        alwaysShowCreate={disableTimeFields}
       />
 
       <Field label="Description">
@@ -127,26 +146,37 @@ export function ManualEntryForm({
         />
       </Field>
 
-      <div className="time-input-row">
-        <Field label="Start" required>
-          <Input
-            type="datetime-local"
-            value={start}
-            step={60}
-            required
-            onChange={(event) => setStart(event.target.value)}
-          />
-        </Field>
-        <Field label="End" required>
-          <Input
-            type="datetime-local"
-            value={end}
-            step={60}
-            required
-            onChange={(event) => setEnd(event.target.value)}
-          />
-        </Field>
-      </div>
+      {!disableTimeFields && (
+        <div className="time-input-row">
+          <Field label="Start" required>
+            <Input
+              type="datetime-local"
+              value={start}
+              step={60}
+              required
+              onChange={(event) => setStart(event.target.value)}
+            />
+          </Field>
+          <Field label="End" required>
+            <Input
+              type="datetime-local"
+              value={end}
+              step={60}
+              required
+              onChange={(event) => setEnd(event.target.value)}
+            />
+          </Field>
+        </div>
+      )}
+
+      {disableTimeFields && (
+        <div className="field">
+          <span className="field__label">Timer status</span>
+          <div className="muted">
+            {entry?.isRunning ? 'Timer is running - time fields are locked' : 'Timer is stopped'}
+          </div>
+        </div>
+      )}
 
       <div className="field">
         <span className="field__label">Tags</span>
