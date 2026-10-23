@@ -478,16 +478,16 @@ app.whenReady().then(() => {
   // Configure auto-updater (GitHub releases will auto-detect from electron-builder config)
   autoUpdater.checkForUpdates()
 
-  autoUpdater.on('update-available', (info) => {
-    console.log('Update available:', info.version)
+  autoUpdater.on('update-available', () => {
+    console.log('Update available')
   })
 
-  autoUpdater.on('update-not-available', (info) => {
+  autoUpdater.on('update-not-available', () => {
     console.log('No update available')
   })
 
-  autoUpdater.on('update-downloaded', (info) => {
-    console.log('Update downloaded:', info.version)
+  autoUpdater.on('update-downloaded', () => {
+    console.log('Update downloaded')
     // Notify user that update is ready to install
     // In production, you might want to show a dialog to the user
   })
