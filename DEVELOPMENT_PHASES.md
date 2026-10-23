@@ -12,7 +12,7 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 **Backend (`server/`)**
 - [x] Express app, env validation, DB connection, error shape, middleware (auth, validation, sanitize, rate limit, CSRF)
 - [x] Auth routes skeleton (`/api/auth/*`)
-- [~] Add missing route modules as features land (workspaces ✅, clients ✅, projects ✅, tasks ✅, tags ✅, time entries ✅, reports)
+- [~] Add missing route modules as features land (workspaces ✅, clients ✅, projects ✅, tasks ✅, tags ✅, time entries ✅, reports ✅)
 - [x] Keep CORS origins aligned with desktop dev (`http://localhost:5173`)
 
 **Frontend (`desktop/`)**
@@ -153,10 +153,10 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 - [x] Reports refresh automatically from time entries (no submit/send action)
 
 **Verification**
-- [ ] Report totals match sum of time entries
-- [ ] Member sees only own reports; Admin/Owner sees all workspace members automatically
-- [ ] Grouping by project/member/date produces correct buckets
-- [ ] CSV opens correctly and matches on-screen data
+- [x] Report totals match sum of time entries
+- [x] Member sees only own reports; Admin/Owner sees all workspace members automatically
+- [x] Grouping by project/member/date produces correct buckets
+- [x] CSV opens correctly and matches on-screen data
 
 ---
 

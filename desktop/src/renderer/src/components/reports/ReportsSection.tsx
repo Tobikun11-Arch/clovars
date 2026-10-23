@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchWorkspaces } from '../../api/workspaces'
 import { fetchProjects, fetchTags } from '../../api/work'
 import { fetchMembers } from '../../api/workspaces'
-import { fetchReport, exportReportCsv } from '../../api/reports'
+import { fetchReport, exportDetailedReportCsv } from '../../api/reports'
 import type { Project, Tag } from '../../types/work'
 import type { ReportFilters, ReportGroupBy, ReportResult } from '../../types/report'
 import type { Workspace, WorkspaceMember } from '../../types/workspace'
@@ -22,11 +22,11 @@ export function ReportsSection(): React.JSX.Element {
   const [projectId, setProjectId] = useState('')
   const [tagId, setTagId] = useState('')
   const [memberId, setMemberId] = useState('')
-  const [groupBy, setGroupBy] = useState<ReportGroupBy>('project')
+  const [groupBy, setGroupBy] = useState<ReportGroupBy>('date')
 
   const [report, setReport] = useState<ReportResult | null>(null)
   const [loading, setLoading] = useState(false)
-  const [exporting, setExporting] = useState(false)
+  const [exportingDetailed, setExportingDetailed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
 
@@ -110,7 +110,7 @@ export function ReportsSection(): React.JSX.Element {
   }
 
   function buildFilters(): ReportFilters {
-    const filters: ReportFilters = { groupBy }
+    const filters: ReportFilters = { groupBy, timezoneOffset: new Date().getTimezoneOffset() }
 
     if (from) filters.from = from
     if (to) filters.to = to
@@ -141,19 +141,19 @@ export function ReportsSection(): React.JSX.Element {
     }
   }
 
-  async function handleExport(): Promise<void> {
+  async function handleExportDetailed(): Promise<void> {
     if (!activeId) return
 
-    setExporting(true)
+    setExportingDetailed(true)
     setError(null)
 
     try {
-      await exportReportCsv(activeId, buildFilters())
-      setInfo('CSV exported.')
+      const fileName = await exportDetailedReportCsv(activeId, buildFilters())
+      setInfo(`CSV exported: ${fileName}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not export the report')
+      setError(err instanceof Error ? err.message : 'Could not export the detailed report')
     } finally {
-      setExporting(false)
+      setExportingDetailed(false)
     }
   }
 
@@ -163,7 +163,7 @@ export function ReportsSection(): React.JSX.Element {
     setProjectId('')
     setTagId('')
     setMemberId('')
-    setGroupBy('project')
+    setGroupBy('date')
     setReport(null)
     setError(null)
     setInfo(null)
@@ -171,6 +171,7 @@ export function ReportsSection(): React.JSX.Element {
 
   const groupLabelHeader =
     groupBy === 'project' ? 'Project' : groupBy === 'member' ? 'Member' : 'Date'
+  const showGroupColumn = groupBy !== 'date'
 
   return (
     <section className="work-section reports-section">
@@ -257,9 +258,9 @@ export function ReportsSection(): React.JSX.Element {
                 value={groupBy}
                 onChange={(event) => setGroupBy(event.target.value as ReportGroupBy)}
               >
+                <option value="date">Date</option>
                 <option value="project">Project</option>
                 <option value="member">Member</option>
-                <option value="date">Date</option>
               </select>
             </label>
           </div>
@@ -275,10 +276,10 @@ export function ReportsSection(): React.JSX.Element {
             </button>
             <button
               type="button"
-              disabled={loading || exporting || !activeId}
-              onClick={() => void handleExport()}
+              disabled={loading || exportingDetailed || !activeId}
+              onClick={() => void handleExportDetailed()}
             >
-              {exporting ? 'Exporting...' : 'Export CSV'}
+              {exportingDetailed ? 'Exporting...' : 'Export CSV'}
             </button>
             <button type="button" disabled={loading} onClick={handleResetFilters}>
               Reset filters
@@ -292,13 +293,22 @@ export function ReportsSection(): React.JSX.Element {
                 {formatDuration(report.totalSeconds)} total
               </h3>
 
+              <p className="muted">
+                Date filtered: {report.from ?? 'All'}
+                {' – '}
+                {report.to ?? 'All'}
+                {' · Report date: '}
+                {new Date(report.generatedAt).toLocaleString()}
+              </p>
+
               {report.groups.length === 0 ? (
                 <p className="muted">No time entries match these filters.</p>
               ) : (
                 <table className="report-table">
                   <thead>
                     <tr>
-                      <th>{groupLabelHeader}</th>
+                      <th>Date</th>
+                      {showGroupColumn && <th>{groupLabelHeader}</th>}
                       <th>Entries</th>
                       <th>Total</th>
                     </tr>
@@ -306,13 +316,20 @@ export function ReportsSection(): React.JSX.Element {
                   <tbody>
                     {report.groups.map((group) => (
                       <tr key={group.key}>
-                        <td>{group.label}</td>
+                        <td>
+                          {group.date ?? '—'}
+                          {group.endDate && group.date && group.endDate !== group.date
+                            ? ` – ${group.endDate}`
+                            : ''}
+                        </td>
+                        {showGroupColumn && <td>{group.label}</td>}
                         <td>{group.count}</td>
                         <td className="duration-cell">{formatDuration(group.totalSeconds)}</td>
                       </tr>
                     ))}
                     <tr className="report-total-row">
-                      <td>Total</td>
+                      <td>—</td>
+                      {showGroupColumn && <td>Total</td>}
                       <td>{report.totalCount}</td>
                       <td className="duration-cell">{formatDuration(report.totalSeconds)}</td>
                     </tr>

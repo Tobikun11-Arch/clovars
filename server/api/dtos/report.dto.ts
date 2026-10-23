@@ -8,8 +8,9 @@ export const reportQueryDto = z.object({
   projectId: z.string().min(1).optional(),
   tagId: z.string().min(1).optional(),
   memberId: z.string().min(1).optional(),
-  groupBy: z.enum(['project', 'member', 'date']).default('project'),
-  limit: z.coerce.number().int().positive().max(100000).optional()
+  groupBy: z.enum(['project', 'member', 'date']).default('date'),
+  limit: z.coerce.number().int().positive().max(100000).optional(),
+  timezoneOffset: z.coerce.number().int().optional()
 });
 
 export type ReportQuery = z.infer<typeof reportQueryDto>;
