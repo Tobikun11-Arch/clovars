@@ -1,11 +1,23 @@
 import { useEffect, useState } from 'react'
 import { apiRequest } from './api/client'
+import { WorkspaceProvider, useWorkspace } from './contexts/WorkspaceContext'
 import { WorkspacesSection } from './components/workspaces/WorkspacesSection'
 import { WorkSection } from './components/work/WorkSection'
+import type { WorkTab } from './components/work/WorkSection'
 import { TimeSection } from './components/time/TimeSection'
 import { ReportsSection } from './components/reports/ReportsSection'
+import {
+  LoginForm,
+  RegisterForm,
+  VerifyForm,
+  ForgotForm,
+  ResetForm
+} from './components/auth/AuthForms'
+import { ProfileSection } from './components/profile/ProfileSection'
+import { DashboardSection } from './components/dashboard/DashboardSection'
 import { useRunningTimer } from './hooks/useRunningTimer'
 import { formatDuration } from './utils/time'
+import { ToastContainer } from './components/ui'
 import type {
   AuthUser,
   ChangePasswordPayload,
@@ -29,6 +41,212 @@ type View =
   | 'work'
   | 'time'
   | 'reports'
+  | 'dashboard'
+
+const Icon = ({ d, ...rest }: { d: string } & React.SVGProps<SVGSVGElement>): React.JSX.Element => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...rest}
+  >
+    <path d={d} />
+  </svg>
+)
+
+const icons = {
+  time: 'M12 8v4l3 3M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z',
+  dashboard: 'M3 13h4v8H3zM10 9h4v12h-4zM17 5h4v16h-4z',
+  reports: 'M4 4h16v16H4zM8 16v-4M12 16V8M16 16v-6',
+  work: 'M3 7h18M3 12h18M3 17h18',
+  projects: 'M3 7l9-4 9 4-9 4-9-4zM3 12l9 4 9-4',
+  clients: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  tasks: 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+  tags: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01',
+  team: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  profile: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9'
+}
+
+function Sidebar({
+  view,
+  setView,
+  setWorkTab,
+  userEmail,
+  open,
+  onClose,
+  onLogout
+}: {
+  view: View
+  setView: (v: View) => void
+  setWorkTab: (t: WorkTab) => void
+  userEmail: string
+  open: boolean
+  onClose: () => void
+  onLogout: () => void
+}): React.JSX.Element {
+  const { workspaces, activeWorkspace, setActiveId } = useWorkspace()
+  const [workOpen, setWorkOpen] = useState(true)
+
+  function nav(v: View): void {
+    setView(v)
+    onClose()
+  }
+
+  const item = (v: View, label: string, iconPath: string): React.JSX.Element => (
+    <button
+      type="button"
+      className={`sidebar-item ${view === v ? 'active' : ''}`}
+      onClick={() => nav(v)}
+      title={label}
+    >
+      <Icon d={iconPath} />
+      <span className="sidebar-label">{label}</span>
+    </button>
+  )
+
+  return (
+    <>
+      <div className={`sidebar-backdrop ${open ? 'open' : ''}`} onClick={onClose} />
+      <aside className={`sidebar ${open ? 'open' : ''}`}>
+        <div className="sidebar-brand">
+          <span className="brand-mark">C</span>
+          <span className="sidebar-label">Clovars</span>
+        </div>
+
+        {/* Global workspace switcher */}
+        <div className="sidebar-workspace" onClick={() => nav('workspaces')}>
+          <span className="sidebar-workspace-name">{activeWorkspace?.name ?? 'No workspace'}</span>
+          <span className="sidebar-workspace-role">{activeWorkspace?.role ?? '—'}</span>
+        </div>
+        {workspaces.length > 1 && (
+          <select
+            className="sidebar-label"
+            style={{
+              width: '100%',
+              padding: '6px 8px',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              fontSize: 'var(--fs-xs)'
+            }}
+            value={activeWorkspace?.id ?? ''}
+            onChange={(e) => setActiveId(e.target.value)}
+          >
+            {workspaces.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name} ({w.role})
+              </option>
+            ))}
+          </select>
+        )}
+
+        <div className="sidebar-group">
+          <div className="sidebar-group-title">Track</div>
+          {item('time', 'Time', icons.time)}
+        </div>
+
+        <div className="sidebar-group">
+          <div className="sidebar-group-title">Analyze</div>
+          {item('dashboard', 'Dashboard', icons.dashboard)}
+          {item('reports', 'Reports', icons.reports)}
+        </div>
+
+        <div className="sidebar-group">
+          <div className="sidebar-group-title">
+            <button
+              type="button"
+              className="sidebar-item"
+              style={{ padding: 0, background: 'transparent' }}
+              onClick={() => setWorkOpen((o) => !o)}
+            >
+              <Icon d={icons.work} />
+              <span className="sidebar-label">Work</span>
+            </button>
+          </div>
+          {workOpen && (
+            <>
+              <button
+                type="button"
+                className={`sidebar-item ${view === 'work' ? 'active' : ''}`}
+                onClick={() => {
+                  setWorkTab('projects')
+                  setView('work')
+                }}
+                title="Projects"
+              >
+                <Icon d={icons.projects} />
+                <span className="sidebar-label">Projects</span>
+              </button>
+              <button
+                type="button"
+                className={`sidebar-item ${view === 'work' ? 'active' : ''}`}
+                onClick={() => {
+                  setWorkTab('clients')
+                  setView('work')
+                }}
+                title="Clients"
+              >
+                <Icon d={icons.clients} />
+                <span className="sidebar-label">Clients</span>
+              </button>
+              <button
+                type="button"
+                className={`sidebar-item ${view === 'work' ? 'active' : ''}`}
+                onClick={() => {
+                  setWorkTab('tasks')
+                  setView('work')
+                }}
+                title="Tasks"
+              >
+                <Icon d={icons.tasks} />
+                <span className="sidebar-label">Tasks</span>
+              </button>
+              <button
+                type="button"
+                className={`sidebar-item ${view === 'work' ? 'active' : ''}`}
+                onClick={() => {
+                  setWorkTab('tags')
+                  setView('work')
+                }}
+                title="Tags"
+              >
+                <Icon d={icons.tags} />
+                <span className="sidebar-label">Tags</span>
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="sidebar-group">
+          <div className="sidebar-group-title">Team</div>
+          {item('workspaces', 'Members & Invites', icons.team)}
+        </div>
+
+        <div className="sidebar-spacer" />
+
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">{(userEmail[0] ?? 'U').toUpperCase()}</div>
+          <div className="sidebar-user-info">
+            <span className="sidebar-user-name">{userEmail.split('@')[0]}</span>
+            <span className="sidebar-user-email">{userEmail}</span>
+          </div>
+        </div>
+        <div className="sidebar-bottom-actions">
+          {item('profile', 'Profile', icons.profile)}
+          <button type="button" className="sidebar-item" onClick={onLogout}>
+            <Icon d={icons.logout} />
+            <span className="sidebar-label">Logout</span>
+          </button>
+        </div>
+      </aside>
+    </>
+  )
+}
 
 function App(): React.JSX.Element {
   const [view, setView] = useState<View>('home')
@@ -37,11 +255,12 @@ function App(): React.JSX.Element {
   const [info, setInfo] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [verifyEmail, setVerifyEmail] = useState('')
+  const [workTab, setWorkTab] = useState<WorkTab>('projects')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const timer = useRunningTimer({ enabled: Boolean(user), onError: setError })
 
   useEffect(() => {
     let cancelled = false
-
     async function bootstrapSession(): Promise<void> {
       try {
         await apiRequest('/api/auth/refresh', { method: 'POST' })
@@ -51,9 +270,7 @@ function App(): React.JSX.Element {
         if (!cancelled) setUser(null)
       }
     }
-
     void bootstrapSession()
-
     return () => {
       cancelled = true
     }
@@ -73,22 +290,18 @@ function App(): React.JSX.Element {
         body: JSON.stringify(payload)
       })
       setUser(result.user)
-      setView('home')
+      setView('dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setLoading(false)
     }
   }
-
   async function handleRegister(payload: RegisterPayload): Promise<void> {
     setLoading(true)
     clearMessages()
     try {
-      await apiRequest('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      })
+      await apiRequest('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) })
       setVerifyEmail(payload.email)
       setInfo('Registration successful. Check your email for the verification code.')
       setView('verify')
@@ -98,15 +311,11 @@ function App(): React.JSX.Element {
       setLoading(false)
     }
   }
-
   async function handleVerify(payload: VerifyPayload): Promise<void> {
     setLoading(true)
     clearMessages()
     try {
-      await apiRequest('/api/auth/verify', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      })
+      await apiRequest('/api/auth/verify', { method: 'POST', body: JSON.stringify(payload) })
       setInfo('Email verified. You can now log in.')
       setView('login')
     } catch (err) {
@@ -115,7 +324,6 @@ function App(): React.JSX.Element {
       setLoading(false)
     }
   }
-
   async function handleResendVerification(email: string): Promise<void> {
     setLoading(true)
     clearMessages()
@@ -131,7 +339,6 @@ function App(): React.JSX.Element {
       setLoading(false)
     }
   }
-
   async function handleForgot(payload: ForgotPasswordPayload): Promise<void> {
     setLoading(true)
     clearMessages()
@@ -148,7 +355,6 @@ function App(): React.JSX.Element {
       setLoading(false)
     }
   }
-
   async function handleReset(payload: ResetPasswordPayload): Promise<void> {
     setLoading(true)
     clearMessages()
@@ -165,15 +371,11 @@ function App(): React.JSX.Element {
       setLoading(false)
     }
   }
-
   async function handleChangePassword(payload: ChangePasswordPayload): Promise<void> {
     setLoading(true)
     clearMessages()
     try {
-      await apiRequest('/api/auth/password', {
-        method: 'PUT',
-        body: JSON.stringify(payload)
-      })
+      await apiRequest('/api/auth/password', { method: 'PUT', body: JSON.stringify(payload) })
       setInfo('Password changed successfully.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Change password failed')
@@ -181,14 +383,13 @@ function App(): React.JSX.Element {
       setLoading(false)
     }
   }
-
   async function handleLogout(): Promise<void> {
     setLoading(true)
     clearMessages()
     try {
       await apiRequest('/api/auth/logout', { method: 'POST' })
     } catch {
-      // ignore
+      /* ignore */
     } finally {
       timer.clear()
       setUser(null)
@@ -197,394 +398,167 @@ function App(): React.JSX.Element {
     }
   }
 
+  // Default landing page for logged-in users
+  useEffect(() => {
+    if (user && (view === 'home' || view === 'login')) {
+      const t = setTimeout(() => setView('dashboard'), 0)
+      return () => clearTimeout(t)
+    }
+    return
+  }, [user, view])
+
+  const isAuthed = Boolean(user)
+
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="app-brand">
-          <h1>Clovars</h1>
-          {user && timer.running && (
-            <div className={timer.running.isPaused ? 'header-timer paused' : 'header-timer'}>
-              <span className={timer.running.isPaused ? 'timer-dot paused' : 'timer-dot'} />
-              <span className="header-timer-clock">{formatDuration(timer.elapsedSeconds)}</span>
-              <span className="header-timer-label">
-                {timer.running.projectName ??
-                  timer.running.description ??
-                  timer.running.workspaceName ??
-                  'Tracking time'}
-              </span>
-              <button
-                type="button"
-                onClick={() => void (timer.running?.isPaused ? timer.resume() : timer.pause())}
-              >
-                {timer.running.isPaused ? 'Resume' : 'Pause'}
-              </button>
-              <button type="button" onClick={() => void timer.stop()}>
-                Stop
-              </button>
-            </div>
-          )}
-        </div>
-        <nav>
-          <button onClick={() => setView('home')}>Home</button>
-          {!user ? (
-            <>
-              <button onClick={() => setView('login')}>Login</button>
-              <button onClick={() => setView('register')}>Register</button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => setView('time')}>Time</button>
-              <button onClick={() => setView('reports')}>Reports</button>
-              <button onClick={() => setView('work')}>Work</button>
-              <button onClick={() => setView('workspaces')}>Workspaces</button>
-              <button onClick={() => setView('profile')}>Profile</button>
-              <button onClick={() => void handleLogout()}>Logout</button>
-            </>
-          )}
-        </nav>
-      </header>
-
-      <main className="app-main">
-        {error && <p className="error">{error}</p>}
-        {info && <p className="info">{info}</p>}
-
-        {view === 'home' && (
-          <section>
-            <h2>Home</h2>
-            {user ? <p>Signed in as {user.email}</p> : <p>You are not signed in.</p>}
-          </section>
-        )}
-
-        {view === 'login' && !user && <LoginForm onSubmit={handleLogin} loading={loading} />}
-
-        {view === 'register' && !user && (
-          <RegisterForm onSubmit={handleRegister} loading={loading} />
-        )}
-
-        {view === 'verify' && !user && (
-          <VerifyForm
-            defaultEmail={verifyEmail}
-            onSubmit={handleVerify}
-            onResend={handleResendVerification}
-            loading={loading}
-          />
-        )}
-
-        {view === 'forgot' && !user && <ForgotForm onSubmit={handleForgot} loading={loading} />}
-
-        {view === 'reset' && !user && <ResetForm onSubmit={handleReset} loading={loading} />}
-
-        {view === 'profile' && user && (
-          <ProfileForm onSubmit={handleChangePassword} loading={loading} />
-        )}
-
-        {view === 'workspaces' && user && <WorkspacesSection currentUserId={user.id} />}
-
-        {view === 'work' && user && <WorkSection />}
-
-        {view === 'time' && user && (
-          <TimeSection
-            running={timer.running}
-            runningElapsedSeconds={timer.elapsedSeconds}
-            onRunningChange={timer.applyRunning}
-          />
-        )}
-
-        {view === 'reports' && user && <ReportsSection />}
-      </main>
-
-      <footer className="app-footer">
-        {!user && (
+    <WorkspaceProvider enabled={isAuthed}>
+      <div className="app-shell">
+        {isAuthed && (
           <>
-            <button onClick={() => setView('forgot')}>Forgot password?</button>
+            <Sidebar
+              view={view}
+              setView={setView}
+              setWorkTab={setWorkTab}
+              userEmail={user?.email ?? ''}
+              open={sidebarOpen}
+              onClose={() => setSidebarOpen(false)}
+              onLogout={() => void handleLogout()}
+            />
           </>
         )}
-      </footer>
-    </div>
-  )
-}
+        <div className="main-area">
+          {isAuthed && (
+            <div className="topbar">
+              <button
+                type="button"
+                className="btn btn-ghost btn-icon mobile-menu-btn"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open menu"
+              >
+                ☰
+              </button>
+              <div>
+                <div className="topbar-title">
+                  {view === 'dashboard'
+                    ? 'Dashboard'
+                    : view === 'time'
+                      ? 'Time'
+                      : view === 'reports'
+                        ? 'Reports'
+                        : view === 'work'
+                          ? 'Work'
+                          : view === 'workspaces'
+                            ? 'Team'
+                            : view === 'profile'
+                              ? 'Profile'
+                              : 'Clovars'}
+                </div>
+              </div>
+              <div className="topbar-actions">
+                {user && timer.running && (
+                  <div className={timer.running.isPaused ? 'header-timer paused' : 'header-timer'}>
+                    <span className={timer.running.isPaused ? 'timer-dot paused' : 'timer-dot'} />
+                    <span className="header-timer-clock">
+                      {formatDuration(timer.elapsedSeconds)}
+                    </span>
+                    <span className="header-timer-label">
+                      {timer.running.projectName ??
+                        timer.running.description ??
+                        timer.running.workspaceName ??
+                        'Tracking time'}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() =>
+                        void (timer.running?.isPaused ? timer.resume() : timer.pause())
+                      }
+                    >
+                      {timer.running.isPaused ? 'Resume' : 'Pause'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      onClick={() => void timer.stop()}
+                    >
+                      Stop
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="content">
+            <div className="content-inner">
+              {error && <p className="error">{error}</p>}
+              {info && <p className="info">{info}</p>}
 
-interface LoginFormProps {
-  onSubmit: (payload: LoginPayload) => void | Promise<void>
-  loading: boolean
-}
+              {!isAuthed && view === 'home' && (
+                <section className="card">
+                  <h2>Welcome to Clovars</h2>
+                  <p className="muted">
+                    Track time, manage projects, and report — all in one place.
+                  </p>
+                  <div className="row" style={{ marginTop: 'var(--sp-4)' }}>
+                    <button className="btn btn-primary" onClick={() => setView('login')}>
+                      Sign in
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => setView('register')}>
+                      Create account
+                    </button>
+                  </div>
+                </section>
+              )}
 
-function LoginForm({ onSubmit, loading }: LoginFormProps): React.JSX.Element {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+              {view === 'login' && !user && <LoginForm onSubmit={handleLogin} loading={loading} />}
+              {view === 'register' && !user && (
+                <RegisterForm onSubmit={handleRegister} loading={loading} />
+              )}
+              {view === 'verify' && !user && (
+                <VerifyForm
+                  defaultEmail={verifyEmail}
+                  onSubmit={handleVerify}
+                  onResend={handleResendVerification}
+                  loading={loading}
+                />
+              )}
+              {view === 'forgot' && !user && (
+                <ForgotForm onSubmit={handleForgot} loading={loading} />
+              )}
+              {view === 'reset' && !user && <ResetForm onSubmit={handleReset} loading={loading} />}
 
-  return (
-    <section>
-      <h2>Login</h2>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          void onSubmit({ email, password })
-        }}
-      >
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </label>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Signing in...' : 'Sign in'}
-        </button>
-      </form>
-    </section>
-  )
-}
-
-interface RegisterFormProps {
-  onSubmit: (payload: RegisterPayload) => void | Promise<void>
-  loading: boolean
-}
-
-function RegisterForm({ onSubmit, loading }: RegisterFormProps): React.JSX.Element {
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [email, setEmail] = useState('')
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-
-  return (
-    <section>
-      <h2>Register</h2>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          void onSubmit({ firstName, lastName, email, username, password })
-        }}
-      >
-        <label>
-          First name
-          <input
-            value={firstName}
-            onChange={(event) => setFirstName(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Last name
-          <input value={lastName} onChange={(event) => setLastName(event.target.value)} required />
-        </label>
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Username
-          <input value={username} onChange={(event) => setUsername(event.target.value)} required />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </label>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Registering...' : 'Register'}
-        </button>
-      </form>
-    </section>
-  )
-}
-
-interface VerifyFormProps {
-  defaultEmail: string
-  onSubmit: (payload: VerifyPayload) => void | Promise<void>
-  onResend: (email: string) => void | Promise<void>
-  loading: boolean
-}
-
-function VerifyForm({
-  defaultEmail,
-  onSubmit,
-  onResend,
-  loading
-}: VerifyFormProps): React.JSX.Element {
-  const [email, setEmail] = useState(defaultEmail)
-  const [code, setCode] = useState('')
-
-  return (
-    <section>
-      <h2>Verify email</h2>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          void onSubmit({ email, code })
-        }}
-      >
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Code
-          <input value={code} onChange={(event) => setCode(event.target.value)} required />
-        </label>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Verifying...' : 'Verify'}
-        </button>
-        <button type="button" disabled={loading} onClick={() => void onResend(email)}>
-          Resend code
-        </button>
-      </form>
-    </section>
-  )
-}
-
-interface ForgotFormProps {
-  onSubmit: (payload: ForgotPasswordPayload) => void | Promise<void>
-  loading: boolean
-}
-
-function ForgotForm({ onSubmit, loading }: ForgotFormProps): React.JSX.Element {
-  const [email, setEmail] = useState('')
-
-  return (
-    <section>
-      <h2>Forgot password</h2>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          void onSubmit({ email })
-        }}
-      >
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Sending...' : 'Send reset code'}
-        </button>
-      </form>
-    </section>
-  )
-}
-
-interface ResetFormProps {
-  onSubmit: (payload: ResetPasswordPayload) => void | Promise<void>
-  loading: boolean
-}
-
-function ResetForm({ onSubmit, loading }: ResetFormProps): React.JSX.Element {
-  const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-
-  return (
-    <section>
-      <h2>Reset password</h2>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          void onSubmit({ email, code, newPassword })
-        }}
-      >
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Code
-          <input value={code} onChange={(event) => setCode(event.target.value)} required />
-        </label>
-        <label>
-          New password
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            required
-          />
-        </label>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Resetting...' : 'Reset password'}
-        </button>
-      </form>
-    </section>
-  )
-}
-
-interface ProfileFormProps {
-  onSubmit: (payload: ChangePasswordPayload) => void | Promise<void>
-  loading: boolean
-}
-
-function ProfileForm({ onSubmit, loading }: ProfileFormProps): React.JSX.Element {
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-
-  return (
-    <section>
-      <h2>Profile / change password</h2>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          void onSubmit({ currentPassword, newPassword })
-        }}
-      >
-        <label>
-          Current password
-          <input
-            type="password"
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          New password
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            required
-          />
-        </label>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : 'Change password'}
-        </button>
-      </form>
-    </section>
+              {view === 'profile' && user && (
+                <ProfileSection user={user} onSubmit={handleChangePassword} loading={loading} />
+              )}
+              {view === 'workspaces' && user && <WorkspacesSection currentUserId={user.id} />}
+              {view === 'work' && user && <WorkSection initialTab={workTab} />}
+              {view === 'time' && user && (
+                <TimeSection
+                  running={timer.running}
+                  runningElapsedSeconds={timer.elapsedSeconds}
+                  onRunningChange={timer.applyRunning}
+                />
+              )}
+              {view === 'reports' && user && <ReportsSection />}
+              {view === 'dashboard' && user && (
+                <DashboardSection
+                  running={timer.running}
+                  runningElapsedSeconds={timer.elapsedSeconds}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+        <ToastContainer />
+      </div>
+    </WorkspaceProvider>
   )
 }
 
 export default App
+
+// Re-export login forms from original file? They are defined below in this file's original; keep minimal inline versions.
+// The original LoginForm etc. are large; import from a separate file to keep App small.
+// For now, define placeholders by importing from the old location is impossible (same file). We'll keep them here.
+
+// NOTE: The original App.tsx contained LoginForm, RegisterForm, etc. inline. To keep this file manageable,
+// those are moved to src/renderer/src/components/auth/AuthForms.tsx (created below). Import them.

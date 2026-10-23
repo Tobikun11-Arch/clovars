@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchWorkspaces } from '../../api/workspaces'
+import { useWorkspace } from '../../contexts/WorkspaceContext'
 import {
   createManualTimeEntry,
   deleteTimeEntry,
@@ -13,13 +13,10 @@ import {
 import { createTask, fetchProjects, fetchTags, fetchTasks } from '../../api/work'
 import type { Project, Tag, Task } from '../../types/work'
 import type { ManualTimeEntryInput, StartTimerInput, TimeEntry } from '../../types/time'
-import type { Workspace } from '../../types/workspace'
 import { formatDuration, formatDurationShort, isToday } from '../../utils/time'
 import { EntriesList } from './EntriesList'
 import { ManualEntryForm } from './ManualEntryForm'
 import { StartTimerForm } from './StartTimerForm'
-
-const ACTIVE_WORKSPACE_KEY = 'clovars.activeWorkspaceId'
 
 type TimeTab = 'timer' | 'manual'
 
@@ -34,8 +31,7 @@ export function TimeSection({
   runningElapsedSeconds,
   onRunningChange
 }: TimeSectionProps): React.JSX.Element {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const { activeId, activeWorkspace } = useWorkspace()
   const [tab, setTab] = useState<TimeTab>('timer')
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -47,44 +43,8 @@ export function TimeSection({
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
 
-  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeId) ?? null
   const runningId = running?.id ?? null
   const runningPaused = running?.isPaused ?? false
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function bootstrap(): Promise<void> {
-      try {
-        const list = await fetchWorkspaces()
-        if (cancelled) return
-
-        setWorkspaces(list)
-
-        const storedId = localStorage.getItem(ACTIVE_WORKSPACE_KEY)
-        const nextId =
-          list.find((workspace) => workspace.id === storedId)?.id ?? list[0]?.id ?? null
-
-        setActiveId(nextId)
-
-        if (nextId) {
-          localStorage.setItem(ACTIVE_WORKSPACE_KEY, nextId)
-        } else {
-          localStorage.removeItem(ACTIVE_WORKSPACE_KEY)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not load workspaces')
-        }
-      }
-    }
-
-    void bootstrap()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     if (!activeId) return
@@ -120,14 +80,6 @@ export function TimeSection({
       cancelled = true
     }
   }, [activeId, runningId, runningPaused])
-
-  function handleSelectWorkspace(workspaceId: string): void {
-    setActiveId(workspaceId)
-    localStorage.setItem(ACTIVE_WORKSPACE_KEY, workspaceId)
-    setEditingEntry(null)
-    setError(null)
-    setInfo(null)
-  }
 
   async function handleStart(input: StartTimerInput): Promise<void> {
     if (!activeId) return
@@ -296,31 +248,24 @@ export function TimeSection({
       {error && <p className="error">{error}</p>}
       {info && <p className="info">{info}</p>}
 
-      {workspaces.length === 0 ? (
-        <p className="muted">
-          You are not in a workspace yet. Create one in the Workspaces tab first.
-        </p>
+      {!activeId ? (
+        <p className="muted">You are not in a workspace yet. Create one in Team.</p>
       ) : (
         <>
-          <div className="workspace-switcher">
-            <label>
-              Workspace
-              <select
-                value={activeWorkspace?.id ?? ''}
-                onChange={(event) => handleSelectWorkspace(event.target.value)}
-              >
-                {workspaces.map((workspace) => (
-                  <option key={workspace.id} value={workspace.id}>
-                    {workspace.name} ({workspace.role})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <p className="today-total">
-              Today (timer + manual): <strong>{formatDuration(todaysTotalSeconds)}</strong>
-            </p>
+          <div className="page-header" style={{ marginBottom: 'var(--sp-2)' }}>
+            <div className="page-header-text">
+              <h2 style={{ margin: 0 }}>Time</h2>
+              <p style={{ margin: 0 }}>
+                {activeWorkspace
+                  ? `${activeWorkspace.name} · ${activeWorkspace.role}`
+                  : 'No workspace selected'}
+              </p>
+            </div>
           </div>
+
+          <p className="today-total">
+            Today (timer + manual): <strong>{formatDuration(todaysTotalSeconds)}</strong>
+          </p>
 
           {running && (
             <div className={running.isPaused ? 'running-timer paused' : 'running-timer'}>

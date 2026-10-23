@@ -16,12 +16,36 @@ export function InvitesPanel({
 }: InvitesPanelProps): React.JSX.Element {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'admin' | 'member'>('member')
+  const [showHistory, setShowHistory] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  async function copyCode(code: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(code)
+      setTimeout(() => setCopied(null), 1500)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Dedupe by code, keep the latest.
+  const seen = new Set<string>()
+  const unique = invites.filter((invite) => {
+    if (seen.has(invite.code)) return false
+    seen.add(invite.code)
+    return true
+  })
+
+  const pending = unique.filter((i) => i.status === 'pending')
+  const history = unique.filter((i) => i.status !== 'pending')
 
   return (
     <section className="invites-panel">
       <h3>Invites</h3>
 
       <form
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault()
           void onCreate(email.trim() ? email.trim() : undefined, role)
@@ -46,29 +70,64 @@ export function InvitesPanel({
             <option value="admin">Admin</option>
           </select>
         </label>
-        <button type="submit" disabled={loading}>
+        <button type="submit" className="btn btn-primary" disabled={loading}>
           {loading ? 'Creating...' : 'Create invite'}
         </button>
       </form>
 
-      {invites.length === 0 ? (
-        <p>No invites yet.</p>
+      <h4 style={{ marginTop: 'var(--sp-4)' }}>Pending invites ({pending.length})</h4>
+      {pending.length === 0 ? (
+        <p className="muted">No pending invites.</p>
       ) : (
         <ul>
-          {invites.map((invite) => (
+          {pending.map((invite) => (
             <li key={invite.id}>
               <span>
-                {invite.email ?? 'Invite code'} — role {invite.role} — {invite.status}
+                {invite.email ?? 'Invite code'} — role {invite.role}
               </span>
               <code>{invite.code}</code>
-              {invite.status === 'pending' && (
-                <button type="button" disabled={loading} onClick={() => void onRevoke(invite)}>
-                  Revoke
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => void copyCode(invite.code)}
+              >
+                {copied === invite.code ? 'Copied!' : 'Copy code'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                disabled={loading}
+                onClick={() => void onRevoke(invite)}
+              >
+                Revoke
+              </button>
             </li>
           ))}
         </ul>
+      )}
+
+      {history.length > 0 && (
+        <div style={{ marginTop: 'var(--sp-4)' }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setShowHistory((s) => !s)}
+          >
+            {showHistory ? 'Hide' : 'Show'} history ({history.length})
+          </button>
+          {showHistory && (
+            <ul style={{ marginTop: 'var(--sp-2)' }}>
+              {history.map((invite) => (
+                <li key={invite.id}>
+                  <span>
+                    {invite.email ?? 'Invite code'} — role {invite.role} — {invite.status}
+                  </span>
+                  <code>{invite.code}</code>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </section>
   )

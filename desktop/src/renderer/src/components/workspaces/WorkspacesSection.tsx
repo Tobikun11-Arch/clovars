@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useWorkspace } from '../../contexts/WorkspaceContext'
 import {
   acceptInvite,
   createInvite,
@@ -6,27 +7,23 @@ import {
   fetchInvites,
   fetchMembers,
   fetchMyInvites,
-  fetchWorkspaces,
   removeMember,
   revokeInvite,
   updateMemberRole
 } from '../../api/workspaces'
-import type { Invite, Workspace, WorkspaceMember } from '../../types/workspace'
+import type { Invite, WorkspaceMember } from '../../types/workspace'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { WorkspaceNameForm } from './WorkspaceNameForm'
 import { JoinWithCodeForm } from './JoinWithCodeForm'
 import { MembersPanel } from './MembersPanel'
 import { InvitesPanel } from './InvitesPanel'
 
-const ACTIVE_WORKSPACE_KEY = 'clovars.activeWorkspaceId'
-
 interface WorkspacesSectionProps {
   currentUserId: string | null
 }
 
 export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): React.JSX.Element {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null)
+  const { workspaces, activeId: activeWorkspaceId, activeWorkspace, refresh } = useWorkspace()
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [invites, setInvites] = useState<Invite[]>([])
   const [myInvites, setMyInvites] = useState<Invite[]>([])
@@ -35,47 +32,32 @@ export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): Re
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
 
-  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null
   const currentRole = activeWorkspace?.role ?? 'member'
   const canManageInvites = currentRole === 'owner' || currentRole === 'admin'
 
-  const loadWorkspaces = useCallback(async (preferredId?: string): Promise<void> => {
-    const list = await fetchWorkspaces()
-    setWorkspaces(list)
-
-    const storedId = preferredId ?? localStorage.getItem(ACTIVE_WORKSPACE_KEY)
-    const nextId = list.find((workspace) => workspace.id === storedId)?.id ?? list[0]?.id ?? null
-
-    setActiveWorkspaceId(nextId)
-
-    if (nextId) {
-      localStorage.setItem(ACTIVE_WORKSPACE_KEY, nextId)
-    } else {
-      localStorage.removeItem(ACTIVE_WORKSPACE_KEY)
-    }
-  }, [])
+  const loadWorkspaces = useCallback(
+    async (preferredId?: string): Promise<void> => {
+      await refresh(preferredId)
+    },
+    [refresh]
+  )
 
   useEffect(() => {
     let cancelled = false
-
     async function bootstrap(): Promise<void> {
       try {
-        await loadWorkspaces()
+        await refresh()
         const pending = await fetchMyInvites()
         if (!cancelled) setMyInvites(pending)
       } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not load workspaces')
-        }
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load workspaces')
       }
     }
-
     void bootstrap()
-
     return () => {
       cancelled = true
     }
-  }, [loadWorkspaces])
+  }, [refresh])
 
   useEffect(() => {
     let cancelled = false
@@ -109,8 +91,7 @@ export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): Re
   }, [activeWorkspace])
 
   function handleSelect(workspaceId: string): void {
-    setActiveWorkspaceId(workspaceId)
-    localStorage.setItem(ACTIVE_WORKSPACE_KEY, workspaceId)
+    refresh(workspaceId)
     setError(null)
     setInfo(null)
   }
