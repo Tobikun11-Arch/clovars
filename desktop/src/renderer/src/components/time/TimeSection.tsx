@@ -12,7 +12,7 @@ import {
 } from '../../api/time'
 import { createTask, fetchProjects, fetchTags, fetchTasks } from '../../api/work'
 import type { Project, Tag, Task } from '../../types/work'
-import type { ManualTimeEntryInput, StartTimerInput, TimeEntry } from '../../types/time'
+import type { ManualTimeEntryInput, StartTimerInput, TimeEntry, UpdateTimeEntryInput } from '../../types/time'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { formatDuration, formatDurationShort, isToday } from '../../utils/time'
 import {
@@ -180,7 +180,7 @@ export function TimeSection({
     }
   }
 
-  async function handleManualSubmit(input: ManualTimeEntryInput): Promise<void> {
+  async function handleManualSubmit(input: ManualTimeEntryInput | UpdateTimeEntryInput): Promise<void> {
     if (!activeId) return
 
     setLoading(true)
@@ -194,7 +194,8 @@ export function TimeSection({
           onRunningChange(updated)
         }
       } else {
-        const entry = await createManualTimeEntry(activeId, input)
+        // When creating a new entry, time fields are always present
+        const entry = await createManualTimeEntry(activeId, input as ManualTimeEntryInput)
         showToast(`Added ${formatDurationShort(entry.durationSeconds)}.`, 'success')
         setFormVersion((version) => version + 1)
       }

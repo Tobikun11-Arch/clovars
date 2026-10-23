@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Project, Tag, Task } from '../../types/work'
-import type { ManualTimeEntryInput, TimeEntry } from '../../types/time'
+import type { ManualTimeEntryInput, TimeEntry, UpdateTimeEntryInput } from '../../types/time'
 import {
   calculateSeconds,
   formatDurationShort,
@@ -18,7 +18,7 @@ interface ManualEntryFormProps {
   tasks: Task[]
   tags: Tag[]
   loading: boolean
-  onSubmit: (input: ManualTimeEntryInput) => void | Promise<void>
+  onSubmit: (input: ManualTimeEntryInput | UpdateTimeEntryInput) => void | Promise<void>
   onCancelEdit: () => void
   onCreateTask: (projectId: string, name: string) => Promise<Task | null>
   showCancel?: boolean

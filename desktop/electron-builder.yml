@@ -12,11 +12,10 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: clovars
-  publisherName: Clovars
   target:
     - nsis
     - portable
+  icon: build/icon.ico
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -48,5 +47,6 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: Tobikun11-Arch
+  repo: clovars

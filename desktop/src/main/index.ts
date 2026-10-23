@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, globalShortcut } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, globalShortcut, autoUpdater } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -474,6 +474,23 @@ function isValidTimerState(value: unknown): value is TimerState {
 app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.clovars.desktop')
+
+  // Configure auto-updater (GitHub releases will auto-detect from electron-builder config)
+  autoUpdater.checkForUpdatesAndNotify()
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version)
+    // Notify user that update is ready to install
+    // In production, you might want to show a dialog to the user
+  })
+
+  autoUpdater.on('error', (error) => {
+    console.error('Auto-updater error:', error)
+  })
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
