@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: desktop
+appId: com.clovars.desktop
+productName: Clovars
 directories:
   buildResources: build
 files:
@@ -12,12 +12,21 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: desktop
+  executableName: clovars
+  publisherName: Clovars
+  target:
+    - nsis
+    - portable
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+portable:
+  artifactName: ${name}-${version}-portable.${ext}
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
@@ -26,15 +35,15 @@ mac:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
+  category: public.app-category.productivity
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
   target:
     - AppImage
-    - snap
     - deb
-  maintainer: electronjs.org
-  category: Utility
+  maintainer: clovars@example.com
+  category: Productivity
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
