@@ -1,4 +1,5 @@
 import { Icon, icons } from '../icons'
+import logo from '../../assets/logo.png'
 
 export function AuthLayout({
   title,
@@ -19,7 +20,7 @@ export function AuthLayout({
     <div className="auth">
       <div className="auth__panel">
         <div className="auth__brand">
-          <span className="brand-mark">C</span>
+          <img className="brand-logo" src={logo} alt="" />
           <span className="auth__brand-name">Clovars</span>
         </div>
 

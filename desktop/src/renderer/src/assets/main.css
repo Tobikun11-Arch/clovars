@@ -51,25 +51,16 @@ body {
   min-height: 40px;
 }
 
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.brand-logo {
+  display: block;
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary), #6366f1);
-  color: #fff;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-bold);
 }
 
-.brand-mark--lg {
+.brand-logo--lg {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
-  font-size: var(--fs-lg);
 }
 
 .sidebar__brand-name {

@@ -39,11 +39,12 @@ import type {
   ResetPasswordPayload,
   VerifyPayload
 } from './types/auth'
+import logo from './assets/logo.png'
 
 function Splash(): React.JSX.Element {
   return (
     <div className="boot">
-      <span className="brand-mark brand-mark--lg">C</span>
+      <img className="brand-logo brand-logo--lg" src={logo} alt="Clovars" />
       <Spinner size={20} />
     </div>
   )

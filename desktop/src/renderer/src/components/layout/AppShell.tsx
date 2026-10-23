@@ -10,6 +10,7 @@ import { Icon, icons } from '../icons'
 import { Page } from './Page'
 import { CreateWorkspaceDialog, JoinWorkspaceDialog } from '../workspaces/WorkspaceDialogs'
 import { WorkspaceOnboarding } from '../workspaces/WorkspaceOnboarding'
+import logo from '../../assets/logo.png'
 
 const WORK_NAV_KEY = 'clovars.workNavOpen'
 
@@ -229,10 +230,9 @@ export function AppShell({
         aria-label="Main navigation"
       >
         <div className="sidebar__brand">
-          <span className="brand-mark">C</span>
+          <img className="brand-logo" src={logo} alt="" />
           <span className="sidebar__brand-name">Clovars</span>
         </div>
-
         <div className="ws" ref={workspaceMenuRef}>
           <button
             type="button"
