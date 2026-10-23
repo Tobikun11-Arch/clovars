@@ -16,6 +16,7 @@ import {
 import {authActionLimiter, authReadLimiter} from '../middleware/rateLimit';
 import workRoutes from './work.routes';
 import timeEntryRoutes from './timeEntry.routes';
+import reportRoutes from './report.routes';
 
 const router = Router();
 
@@ -100,6 +101,6 @@ router.delete(
 );
 
 // clients, projects, tasks, tags, time entries (all workspace members)
-router.use('/:workspaceId', loadWorkspace, workRoutes, timeEntryRoutes);
+router.use('/:workspaceId', loadWorkspace, workRoutes, timeEntryRoutes, reportRoutes);
 
 export default router;

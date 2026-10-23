@@ -139,18 +139,18 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 - Admin/Owner → every member's reports in that workspace, automatically.
 
 **Backend**
-- [ ] Report aggregation endpoint (group by project / member / date), role-scoped by membership
-- [ ] Filters: date range, project, member (Admin/Owner only), tag
-- [ ] Totals and per-group durations
-- [ ] CSV export endpoint (streamed file) with the same role scoping
+- [x] Report aggregation endpoint (group by project / member / date), role-scoped by membership
+- [x] Filters: date range, project, member (Admin/Owner only), tag
+- [x] Totals and per-group durations
+- [x] CSV export endpoint (streamed file) with the same role scoping
 
 **Frontend**
-- [ ] Reports screen with grouping selector and filters
-- [ ] Admin/Owner view shows all workspace members automatically; Member view shows own time only
-- [ ] Summary table + totals
-- [ ] Export to CSV (download/save dialog)
-- [ ] Empty state and loading states
-- [ ] Reports refresh automatically from time entries (no submit/send action)
+- [x] Reports screen with grouping selector and filters
+- [x] Admin/Owner view shows all workspace members automatically; Member view shows own time only
+- [x] Summary table + totals
+- [x] Export to CSV (download/save dialog)
+- [x] Empty state and loading states
+- [x] Reports refresh automatically from time entries (no submit/send action)
 
 **Verification**
 - [ ] Report totals match sum of time entries

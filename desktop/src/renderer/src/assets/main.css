@@ -552,6 +552,73 @@ button.danger {
   color: #ff8a80;
 }
 
-button.danger:hover:enabled {
-  background-color: rgba(255, 82, 82, 0.15);
+.reports-section form {
+  max-width: none;
+}
+
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin: 8px 0 12px;
+}
+
+.report-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ev-c-text-2);
+  min-width: 140px;
+}
+
+.report-filters input,
+.report-filters select {
+  padding: 8px 10px;
+  border: 1px solid var(--ev-c-gray-3);
+  border-radius: 6px;
+  background-color: var(--color-background-soft);
+  color: var(--ev-c-text-1);
+  font-size: 14px;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.report-table th,
+.report-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-background-mute);
+  text-align: left;
+}
+
+.report-table th {
+  font-weight: 600;
+  color: var(--ev-c-text-2);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.report-table tbody tr:hover {
+  background-color: var(--color-background-soft);
+}
+
+.duration-cell {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.report-total-row {
+  font-weight: 700;
+  border-top: 2px solid var(--color-background-mute);
+}
+
+.report-total-row td {
+  padding-top: 10px;
 }

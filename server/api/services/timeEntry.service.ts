@@ -27,7 +27,7 @@ type Lookup = {
   tags: Map<string, TagDto>;
 };
 
-async function buildLookup(workspaceId: string): Promise<Lookup> {
+export async function buildLookup(workspaceId: string): Promise<Lookup> {
   const [projects, tasks, tags] = await Promise.all([
     projectRepository.findByWorkspace(workspaceId),
     taskRepository.findByWorkspace(workspaceId),
@@ -76,7 +76,7 @@ function currentSegmentStart(entry: TimeEntryDocument): Date {
   return entry.lastResumedAt ?? entry.startTime;
 }
 
-function computeElapsedSeconds(
+export function computeElapsedSeconds(
   entry: TimeEntryDocument,
   at: Date = new Date()
 ): number {

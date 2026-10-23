@@ -3,6 +3,7 @@ import { apiRequest } from './api/client'
 import { WorkspacesSection } from './components/workspaces/WorkspacesSection'
 import { WorkSection } from './components/work/WorkSection'
 import { TimeSection } from './components/time/TimeSection'
+import { ReportsSection } from './components/reports/ReportsSection'
 import { useRunningTimer } from './hooks/useRunningTimer'
 import { formatDuration } from './utils/time'
 import type {
@@ -27,6 +28,7 @@ type View =
   | 'workspaces'
   | 'work'
   | 'time'
+  | 'reports'
 
 function App(): React.JSX.Element {
   const [view, setView] = useState<View>('home')
@@ -232,6 +234,7 @@ function App(): React.JSX.Element {
           ) : (
             <>
               <button onClick={() => setView('time')}>Time</button>
+              <button onClick={() => setView('reports')}>Reports</button>
               <button onClick={() => setView('work')}>Work</button>
               <button onClick={() => setView('workspaces')}>Workspaces</button>
               <button onClick={() => setView('profile')}>Profile</button>
@@ -286,6 +289,8 @@ function App(): React.JSX.Element {
             onRunningChange={timer.applyRunning}
           />
         )}
+
+        {view === 'reports' && user && <ReportsSection />}
       </main>
 
       <footer className="app-footer">

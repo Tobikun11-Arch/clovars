@@ -103,5 +103,35 @@ export const timeEntryRepository = {
     TimeEntryModel.updateMany({taskId}, {$set: {taskId: null}}).exec(),
 
   pullTag: (tagId: string): Promise<unknown> =>
-    TimeEntryModel.updateMany({tagIds: tagId}, {$pull: {tagIds: tagId}}).exec()
+    TimeEntryModel.updateMany({tagIds: tagId}, {$pull: {tagIds: tagId}}).exec(),
+
+  listForReport: (
+    workspaceId: string,
+    filters: {
+      userId?: string;
+      projectId?: string;
+      tagId?: string;
+      from?: Date;
+      to?: Date;
+      limit?: number;
+    } = {}
+  ): Promise<TimeEntryDocument[]> => {
+    const query: Record<string, unknown> = {workspaceId};
+
+    if (filters.userId) query.userId = filters.userId;
+    if (filters.projectId) query.projectId = filters.projectId;
+    if (filters.tagId) query.tagIds = filters.tagId;
+
+    if (filters.from || filters.to) {
+      const range: Record<string, Date> = {};
+      if (filters.from) range.$gte = filters.from;
+      if (filters.to) range.$lte = filters.to;
+      query.startTime = range;
+    }
+
+    return TimeEntryModel.find(query)
+      .sort({startTime: 1})
+      .limit(filters.limit ?? 10000)
+      .exec();
+  }
 };
