@@ -1,4 +1,5 @@
 import type { Tag } from '../../types/work'
+import { Checkbox } from '../ui'
 
 interface TagPickerProps {
   tags: Tag[]
@@ -14,7 +15,7 @@ export function TagPicker({
   disabled = false
 }: TagPickerProps): React.JSX.Element {
   if (tags.length === 0) {
-    return <p className="muted">No tags yet. Create some in Work → Tags.</p>
+    return <p className="field__hint">No tags yet. Create some under Work → Tags.</p>
   }
 
   function toggle(tagId: string): void {
@@ -29,14 +30,18 @@ export function TagPicker({
     <div className="tag-picker">
       {tags.map((tag) => (
         <label key={tag.id} className="tag-option">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selectedIds.includes(tag.id)}
             disabled={disabled}
             onChange={() => toggle(tag.id)}
+            label={
+              <>
+                {' '}
+                <span className="chip__dot" style={{ backgroundColor: tag.color }} />{' '}
+                {tag.name}{' '}
+              </>
+            }
           />
-          <span className="color-dot" style={{ backgroundColor: tag.color }} />
-          {tag.name}
         </label>
       ))}
     </div>

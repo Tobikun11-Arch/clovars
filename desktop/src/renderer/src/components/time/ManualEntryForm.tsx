@@ -8,6 +8,7 @@ import {
   toDateTimeLocal,
   toDateTimeLocalValue
 } from '../../utils/time'
+import { Button, Field, Input, Select, Stack } from '../ui'
 import { TagPicker } from './TagPicker'
 import { TaskPicker } from './TaskPicker'
 
@@ -84,20 +85,17 @@ export function ManualEntryForm({
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      {entry && <p className="muted">Editing a saved entry.</p>}
-
-      <label>
-        Project (optional)
-        <select value={projectId} onChange={(event) => handleProjectChange(event.target.value)}>
+    <form className="stack" style={{ gap: 'var(--gap-field)' }} onSubmit={handleSubmit}>
+      <Field label="Project">
+        <Select value={projectId} onChange={(event) => handleProjectChange(event.target.value)}>
           <option value="">No project</option>
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.name}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Field>
 
       <TaskPicker
         projectId={projectId}
@@ -108,58 +106,59 @@ export function ManualEntryForm({
         onCreateTask={onCreateTask}
       />
 
-      <label>
-        Description (optional)
-        <input
+      <Field label="Description">
+        <Input
           value={description}
           maxLength={500}
           placeholder="What did you work on?"
           onChange={(event) => setDescription(event.target.value)}
         />
-      </label>
+      </Field>
 
       <div className="time-input-row">
-        <label>
-          Start
-          <input
+        <Field label="Start" required>
+          <Input
             type="datetime-local"
             value={start}
             step={60}
             required
             onChange={(event) => setStart(event.target.value)}
           />
-        </label>
-        <label>
-          End
-          <input
+        </Field>
+        <Field label="End" required>
+          <Input
             type="datetime-local"
             value={end}
             step={60}
             required
             onChange={(event) => setEnd(event.target.value)}
           />
-        </label>
+        </Field>
       </div>
 
-      <p className="muted">Duration: {formatDurationShort(durationSeconds)}</p>
-
-      <div className="tag-field">
-        <span className="field-label">Tags</span>
+      <div className="field">
+        <span className="field__label">Tags</span>
         <TagPicker tags={tags} selectedIds={tagIds} onChange={setTagIds} disabled={loading} />
       </div>
 
-      {formError && <p className="error">{formError}</p>}
-
-      <div className="form-actions">
-        <button type="submit" className="primary" disabled={loading}>
-          {loading ? 'Saving...' : entry ? 'Save entry' : 'Add entry'}
-        </button>
-        {entry && (
-          <button type="button" disabled={loading} onClick={onCancelEdit}>
-            Cancel
-          </button>
-        )}
+      <div className="inline" style={{ justifyContent: 'space-between' }}>
+        <span className="muted">Duration: {formatDurationShort(durationSeconds)}</span>
       </div>
+
+      {formError && (
+        <div className="form-alert" role="alert">
+          {formError}
+        </div>
+      )}
+
+      <Stack gap={2}>
+        <Button variant="primary" type="submit" loading={loading}>
+          {entry ? 'Save changes' : 'Add entry'}
+        </Button>
+        <Button variant="ghost" disabled={loading} onClick={onCancelEdit}>
+          {entry ? 'Cancel edit' : 'Cancel'}
+        </Button>
+      </Stack>
     </form>
   )
 }

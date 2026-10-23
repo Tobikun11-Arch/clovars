@@ -4,6 +4,7 @@
   --bg: #f6f7f9;
   --surface: #ffffff;
   --surface-2: #f9fafb;
+  --surface-3: #f3f4f6;
   --border: #e5e7eb;
   --border-strong: #d1d5db;
 
@@ -20,6 +21,7 @@
 
   /* Semantic */
   --danger: #dc2626;
+  --danger-hover: #b91c1c;
   --danger-soft: #fee2e2;
   --success: #16a34a;
   --success-soft: #dcfce7;
@@ -30,8 +32,11 @@
   --radius-sm: 6px;
   --radius: 8px;
   --radius-lg: 12px;
+  --radius-control: 8px;
+  --radius-card: 12px;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 48px rgba(15, 23, 42, 0.18);
 
   /* Spacing (4px base) */
   --sp-1: 4px;
@@ -40,6 +45,7 @@
   --sp-4: 16px;
   --sp-5: 24px;
   --sp-6: 32px;
+  --sp-7: 48px;
 
   /* Type */
   --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -49,16 +55,44 @@
   --fs-lg: 16px;
   --fs-xl: 20px;
   --fs-2xl: 24px;
+  --fs-3xl: 30px;
   --fw-normal: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
   --fw-bold: 700;
+  --lh-tight: 1.25;
 
-  /* Layout */
-  --sidebar-width: 240px;
+  /* Layout system */
+  --sidebar-w: 248px;
   --sidebar-rail: 64px;
-  --topbar-height: 56px;
-  --content-max: 1200px;
+  --topbar-h: 56px;
+  --page-pad: 24px;
+  --page-pad-sm: 16px;
+  --gap-section: 24px;
+  --gap-field: 14px;
+  --gap-group: 8px;
+  --content-narrow: 720px;
+  --content-default: 1040px;
+  --content-wide: 1440px;
+  --drawer-w: 440px;
+
+  /* Focus + motion */
+  --ring: 0 0 0 3px rgba(14, 165, 233, 0.28);
+  --transition: 150ms ease;
+
+  /* Z-index scale */
+  --z-content: 1;
+  --z-sidebar: 30;
+  --z-topbar: 40;
+  --z-popover: 60;
+  --z-overlay: 70;
+  --z-modal: 80;
+  --z-toast: 90;
+
+  /* Legacy aliases kept so older rules keep working during migration */
+  --sidebar-width: var(--sidebar-w);
+  --topbar-height: var(--topbar-h);
+  --content-max: var(--content-default);
 }
 
 /* Dark mode hook (not implemented, tokens structured for it) */
@@ -108,19 +142,120 @@ a:hover {
   outline-offset: 2px;
 }
 
-table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
+/* ---------- Base form controls ----------
+   These guarantees mean no raw control can ever look unstyled, even if a page
+   forgets to use the shared Field/Input/Select components. */
 input,
 select,
 textarea {
-  font-family: inherit;
-  font-size: var(--fs-base);
+  font: inherit;
+  color: var(--text);
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition),
+    background var(--transition);
 }
 
-ul,
-ol {
-  list-style: none;
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-subtle);
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--text-subtle);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  cursor: not-allowed;
+}
+
+textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: 16px;
+  min-height: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--primary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+input[type='color'] {
+  width: 44px;
+  min-height: 34px;
+  padding: 3px;
+  cursor: pointer;
+}
+
+input[type='date'],
+input[type='datetime-local'],
+input[type='time'] {
+  cursor: pointer;
+}
+
+select {
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: inherit;
+}
+
+code {
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
+  font-size: 0.95em;
+}
+
+/* Respect the OS reduced-motion preference and the in-app toggle. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+[data-reduce-motion='true'] *,
+[data-reduce-motion='true'] *::before,
+[data-reduce-motion='true'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

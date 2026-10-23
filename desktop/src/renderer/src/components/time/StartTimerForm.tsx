@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { Project, Tag, Task } from '../../types/work'
 import type { StartTimerInput } from '../../types/time'
+import { Button, Field, Input, Select } from '../ui'
+import { Icon, icons } from '../icons'
 import { TagPicker } from './TagPicker'
 import { TaskPicker } from './TaskPicker'
 
@@ -43,18 +45,17 @@ export function StartTimerForm({
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <label>
-        Project (optional)
-        <select value={projectId} onChange={(event) => handleProjectChange(event.target.value)}>
+    <form className="stack" style={{ gap: 'var(--gap-field)' }} onSubmit={handleSubmit}>
+      <Field label="Project">
+        <Select value={projectId} onChange={(event) => handleProjectChange(event.target.value)}>
           <option value="">No project</option>
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.name}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Field>
 
       <TaskPicker
         projectId={projectId}
@@ -65,25 +66,29 @@ export function StartTimerForm({
         onCreateTask={onCreateTask}
       />
 
-      <label>
-        Description (optional)
-        <input
+      <Field label="Description">
+        <Input
           value={description}
           maxLength={500}
           placeholder="What are you working on?"
           onChange={(event) => setDescription(event.target.value)}
         />
-      </label>
+      </Field>
 
-      <div className="tag-field">
-        <span className="field-label">Tags</span>
+      <div className="field">
+        <span className="field__label">Tags</span>
         <TagPicker tags={tags} selectedIds={tagIds} onChange={setTagIds} disabled={loading} />
       </div>
 
       <div className="form-actions">
-        <button type="submit" className="primary" disabled={loading}>
-          {loading ? 'Starting...' : 'Start timer'}
-        </button>
+        <Button
+          variant="primary"
+          type="submit"
+          loading={loading}
+          icon={<Icon d={icons.play} size={16} />}
+        >
+          Start timer
+        </Button>
       </div>
     </form>
   )

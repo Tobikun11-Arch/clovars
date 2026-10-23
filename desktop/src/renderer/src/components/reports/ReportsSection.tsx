@@ -2,18 +2,89 @@ import { useEffect, useState } from 'react'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import { fetchProjects, fetchTags } from '../../api/work'
 import { fetchMembers } from '../../api/workspaces'
-import { fetchReport, exportDetailedReportCsv } from '../../api/reports'
+import { fetchReport, exportReportCsv, exportDetailedReportCsv } from '../../api/reports'
 import type { Project, Tag } from '../../types/work'
 import type { ReportFilters, ReportGroupBy, ReportResult } from '../../types/report'
 import type { WorkspaceMember } from '../../types/workspace'
-import { formatDuration } from '../../utils/time'
-import { Card, EmptyState } from '../ui'
+import { formatDuration, formatDurationShort, formatShortDate } from '../../utils/time'
+import {
+  BarChart,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  Section,
+  Select,
+  Spinner,
+  StatCard,
+  TableContainer,
+  showToast
+} from '../ui'
+import { Icon, icons } from '../icons'
+
+type Preset = 'this-week' | 'last-week' | 'this-month' | 'last-month' | 'all-time'
+
+const PRESETS: Array<{ value: Preset; label: string }> = [
+  { value: 'this-week', label: 'This week' },
+  { value: 'last-week', label: 'Last week' },
+  { value: 'this-month', label: 'This month' },
+  { value: 'last-month', label: 'Last month' },
+  { value: 'all-time', label: 'All time' }
+]
+
+function toDateInput(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function startOfWeek(date: Date, weekStartsOn: number): Date {
+  const d = new Date(date)
+  const day = d.getDay()
+  d.setDate(d.getDate() - ((day - weekStartsOn + 7) % 7))
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function presetRange(preset: Preset, weekStartsOn: number): { from: string; to: string } {
+  const today = new Date()
+  const weekStart = startOfWeek(today, weekStartsOn)
+
+  if (preset === 'this-week') {
+    return { from: toDateInput(weekStart), to: toDateInput(today) }
+  }
+
+  if (preset === 'last-week') {
+    const start = new Date(weekStart)
+    start.setDate(start.getDate() - 7)
+    const end = new Date(weekStart)
+    end.setDate(end.getDate() - 1)
+    return { from: toDateInput(start), to: toDateInput(end) }
+  }
+
+  if (preset === 'this-month') {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1)
+    return { from: toDateInput(start), to: toDateInput(today) }
+  }
+
+  if (preset === 'last-month') {
+    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    const end = new Date(today.getFullYear(), today.getMonth(), 0)
+    return { from: toDateInput(start), to: toDateInput(end) }
+  }
+
+  return { from: '', to: '' }
+}
 
 export function ReportsSection(): React.JSX.Element {
   const { activeId, activeWorkspace } = useWorkspace()
   const [projects, setProjects] = useState<Project[]>([])
   const [tags, setTags] = useState<Tag[]>([])
   const [members, setMembers] = useState<WorkspaceMember[]>([])
+  const [optionsError, setOptionsError] = useState(false)
 
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -21,12 +92,13 @@ export function ReportsSection(): React.JSX.Element {
   const [tagId, setTagId] = useState('')
   const [memberId, setMemberId] = useState('')
   const [groupBy, setGroupBy] = useState<ReportGroupBy>('date')
+  const [activePreset, setActivePreset] = useState<Preset | null>('this-week')
 
   const [report, setReport] = useState<ReportResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [exportingSummary, setExportingSummary] = useState(false)
   const [exportingDetailed, setExportingDetailed] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
 
   const isAdmin = activeWorkspace?.role === 'admin' || activeWorkspace?.role === 'owner'
 
@@ -34,7 +106,9 @@ export function ReportsSection(): React.JSX.Element {
     if (!activeId) return
     const workspaceId = activeId
     let cancelled = false
+
     async function load(): Promise<void> {
+      setOptionsError(false)
       try {
         const [nextProjects, nextTags, nextMembers] = await Promise.all([
           fetchProjects(workspaceId),
@@ -46,55 +120,105 @@ export function ReportsSection(): React.JSX.Element {
         setTags(nextTags)
         setMembers(nextMembers)
       } catch (err) {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : 'Could not load workspace data')
+        if (!cancelled) {
+          setOptionsError(true)
+          showToast(err instanceof Error ? err.message : 'Could not load filter options', 'error')
+        }
       }
     }
+
     void load()
     return () => {
       cancelled = true
     }
   }, [activeId])
 
-  function buildFilters(): ReportFilters {
-    const filters: ReportFilters = { groupBy, timezoneOffset: new Date().getTimezoneOffset() }
-    if (from) filters.from = from
-    if (to) filters.to = to
-    if (projectId) filters.projectId = projectId
-    if (tagId) filters.tagId = tagId
-    if (isAdmin && memberId) filters.memberId = memberId
+  // Load the current week automatically so the page never starts blank.
+  useEffect(() => {
+    if (!activeId) return
+    const workspaceId = activeId
+    const handle = window.setTimeout(() => {
+      const weekStartsOn = localStorage.getItem('clovars.weekStart') === 'sunday' ? 0 : 1
+      const range = presetRange('this-week', weekStartsOn)
+      setFrom(range.from)
+      setTo(range.to)
+      setProjectId('')
+      setTagId('')
+      setMemberId('')
+      setGroupBy('date')
+      setActivePreset('this-week')
+      void loadReport(workspaceId, range, true)
+    }, 0)
+    return () => window.clearTimeout(handle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId])
+
+  function buildFilters(
+    overrides: { from?: string; to?: string } = {},
+    resetFilters = false
+  ): ReportFilters {
+    const nextFrom = overrides.from ?? from
+    const nextTo = overrides.to ?? to
+    const nextGroupBy = resetFilters ? 'date' : groupBy
+    const filters: ReportFilters = {
+      groupBy: nextGroupBy,
+      timezoneOffset: new Date().getTimezoneOffset()
+    }
+    if (nextFrom) filters.from = nextFrom
+    if (nextTo) filters.to = nextTo
+    if (!resetFilters && projectId) filters.projectId = projectId
+    if (!resetFilters && tagId) filters.tagId = tagId
+    if (isAdmin && !resetFilters && memberId) filters.memberId = memberId
     return filters
   }
 
-  async function handleGenerate(): Promise<void> {
-    if (!activeId) return
+  async function loadReport(
+    workspaceId: string,
+    overrides: { from?: string; to?: string } = {},
+    resetFilters = false
+  ): Promise<void> {
     setLoading(true)
     setError(null)
-    setInfo(null)
     try {
-      const result = await fetchReport(activeId, buildFilters())
+      const result = await fetchReport(workspaceId, buildFilters(overrides, resetFilters))
       setReport(result)
-      setInfo(
-        `Loaded ${result.totalCount} entries totaling ${formatDuration(result.totalSeconds)}.`
-      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the report')
+      setReport(null)
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleExportDetailed(): Promise<void> {
+  async function handleGenerate(): Promise<void> {
     if (!activeId) return
-    setExportingDetailed(true)
-    setError(null)
+    await loadReport(activeId)
+  }
+
+  function handlePreset(preset: Preset): void {
+    if (!activeId) return
+    const weekStartsOn = localStorage.getItem('clovars.weekStart') === 'sunday' ? 0 : 1
+    const range = presetRange(preset, weekStartsOn)
+    setFrom(range.from)
+    setTo(range.to)
+    setActivePreset(preset)
+    void loadReport(activeId, range)
+  }
+
+  async function handleExport(kind: 'summary' | 'detailed'): Promise<void> {
+    if (!activeId) return
+    const setExporting = kind === 'summary' ? setExportingSummary : setExportingDetailed
+    setExporting(true)
     try {
-      const fileName = await exportDetailedReportCsv(activeId, buildFilters())
-      setInfo(`CSV exported: ${fileName}`)
+      const fileName =
+        kind === 'summary'
+          ? await exportReportCsv(activeId, buildFilters())
+          : await exportDetailedReportCsv(activeId, buildFilters())
+      showToast(`Exported ${fileName}`, 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not export the detailed report')
+      showToast(err instanceof Error ? err.message : 'Could not export the report', 'error')
     } finally {
-      setExportingDetailed(false)
+      setExporting(false)
     }
   }
 
@@ -105,167 +229,271 @@ export function ReportsSection(): React.JSX.Element {
     setTagId('')
     setMemberId('')
     setGroupBy('date')
+    setActivePreset(null)
     setReport(null)
     setError(null)
-    setInfo(null)
+  }
+
+  if (!activeId) {
+    return (
+      <EmptyState
+        icon={<Icon d={icons.reports} size={24} />}
+        title="No workspace selected"
+        description="Create or join a workspace to see reports."
+      />
+    )
   }
 
   const groupLabelHeader =
     groupBy === 'project' ? 'Project' : groupBy === 'member' ? 'Member' : 'Date'
   const showGroupColumn = groupBy !== 'date'
-
-  if (!activeId) {
-    return (
-      <section className="work-section">
-        <h2>Reports</h2>
-        <p className="muted">You are not in a workspace yet.</p>
-      </section>
-    )
-  }
+  const chartData = report
+    ? [...report.groups]
+        .sort((a, b) =>
+          groupBy === 'date'
+            ? (a.date ?? a.endDate ?? '').localeCompare(b.date ?? b.endDate ?? '')
+            : b.totalSeconds - a.totalSeconds
+        )
+        .slice(0, 12)
+        .map((group) => ({
+          label:
+            groupBy === 'date'
+              ? group.date
+                ? formatShortDate(group.date)
+                : group.label
+              : group.label,
+          seconds: group.totalSeconds
+        }))
+    : []
 
   return (
-    <section className="work-section">
-      <div className="page-header">
-        <div className="page-header-text">
-          <h1>Reports</h1>
-          <p>
-            Reports are generated automatically from tracked time. Members see their own time;
-            admins see all members.
-          </p>
+    <>
+      <Section
+        title="Reports"
+        description="Generated automatically from tracked time. Members see their own time; admins and owners see everyone."
+      >
+        <div className="report-presets" role="group" aria-label="Date range presets">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.value}
+              type="button"
+              className={`chip chip--button${activePreset === preset.value ? ' is-active' : ''}`}
+              aria-pressed={activePreset === preset.value}
+              disabled={loading}
+              onClick={() => handlePreset(preset.value)}
+            >
+              {preset.label}
+            </button>
+          ))}
         </div>
-      </div>
-      {error && <p className="error">{error}</p>}
-      {info && <p className="info">{info}</p>}
+      </Section>
 
       <Card title="Filters">
         <div className="report-filters">
-          <label>
-            From
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label>
-            To
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </label>
-          <label>
-            Project
-            <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+          <Field label="From">
+            <Input
+              type="date"
+              value={from}
+              onChange={(event) => {
+                setFrom(event.target.value)
+                setActivePreset(null)
+              }}
+            />
+          </Field>
+          <Field label="To">
+            <Input
+              type="date"
+              value={to}
+              onChange={(event) => {
+                setTo(event.target.value)
+                setActivePreset(null)
+              }}
+            />
+          </Field>
+          <Field label="Project">
+            <Select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
               <option value="">All projects</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label>
-            Tag
-            <select value={tagId} onChange={(e) => setTagId(e.target.value)}>
+            </Select>
+          </Field>
+          <Field label="Tag">
+            <Select value={tagId} onChange={(event) => setTagId(event.target.value)}>
               <option value="">All tags</option>
-              {tags.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
+              {tags.map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           {isAdmin && (
-            <label>
-              Member
-              <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+            <Field label="Member">
+              <Select value={memberId} onChange={(event) => setMemberId(event.target.value)}>
                 <option value="">All members</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.userId}>
-                    {m.firstName || m.lastName
-                      ? `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim()
-                      : m.email}
+                {members.map((member) => (
+                  <option key={member.id} value={member.userId}>
+                    {[member.firstName, member.lastName].filter(Boolean).join(' ') || member.email}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           )}
-          <label>
-            Group by
-            <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as ReportGroupBy)}>
+          <Field label="Group by">
+            <Select
+              value={groupBy}
+              onChange={(event) => setGroupBy(event.target.value as ReportGroupBy)}
+            >
               <option value="date">Date</option>
               <option value="project">Project</option>
               <option value="member">Member</option>
-            </select>
-          </label>
+            </Select>
+          </Field>
         </div>
+
         <div className="form-actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={loading || !activeId}
+          <Button
+            variant="primary"
+            loading={loading}
+            icon={<Icon d={icons.reports} size={16} />}
             onClick={() => void handleGenerate()}
           >
-            {loading ? 'Loading...' : 'Generate report'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={loading || exportingDetailed || !activeId}
-            onClick={() => void handleExportDetailed()}
+            Generate report
+          </Button>
+          <Button
+            variant="secondary"
+            loading={exportingSummary}
+            disabled={exportingDetailed}
+            icon={<Icon d={icons.download} size={16} />}
+            onClick={() => void handleExport('summary')}
           >
-            {exportingDetailed ? 'Exporting...' : 'Export CSV'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={loading}
-            onClick={handleResetFilters}
+            Export summary
+          </Button>
+          <Button
+            variant="secondary"
+            loading={exportingDetailed}
+            disabled={exportingSummary}
+            icon={<Icon d={icons.download} size={16} />}
+            onClick={() => void handleExport('detailed')}
           >
-            Reset filters
-          </button>
+            Export detailed CSV
+          </Button>
+          <Button variant="ghost" disabled={loading} onClick={handleResetFilters}>
+            Reset
+          </Button>
         </div>
+        {optionsError && (
+          <p className="field__hint">
+            Some filter options could not be loaded. Reload to try again.
+          </p>
+        )}
       </Card>
 
-      {report && (
-        <Card
-          title={`${groupLabelHeader} summary — ${report.totalCount} entries, ${formatDuration(report.totalSeconds)} total`}
-        >
-          <p className="muted">
-            Date filtered: {report.from ?? 'All'} – {report.to ?? 'All'} · Report date:{' '}
-            {new Date(report.generatedAt).toLocaleString()}
-          </p>
-          {report.groups.length === 0 ? (
-            <EmptyState title="No time entries match these filters." />
-          ) : (
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  {showGroupColumn && <th>{groupLabelHeader}</th>}
-                  <th>Entries</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.groups.map((group) => (
-                  <tr key={group.key}>
-                    <td>
-                      {group.date ?? '—'}
-                      {group.endDate && group.date && group.endDate !== group.date
-                        ? ` – ${group.endDate}`
-                        : ''}
-                    </td>
-                    {showGroupColumn && <td>{group.label}</td>}
-                    <td>{group.count}</td>
-                    <td className="duration-cell">{formatDuration(group.totalSeconds)}</td>
-                  </tr>
-                ))}
-                <tr className="report-total-row">
-                  <td>—</td>
-                  {showGroupColumn && <td>Total</td>}
-                  <td>{report.totalCount}</td>
-                  <td className="duration-cell">{formatDuration(report.totalSeconds)}</td>
-                </tr>
-              </tbody>
-            </table>
-          )}
+      {error ? (
+        <ErrorState
+          title="Could not load the report"
+          message={error}
+          onRetry={() => void handleGenerate()}
+        />
+      ) : loading ? (
+        <Card title="Loading report">
+          <div className="report-loading">
+            <Spinner />
+            <span>Crunching your tracked time…</span>
+          </div>
         </Card>
+      ) : report ? (
+        <>
+          <div className="stat-grid">
+            <StatCard
+              label="Total time"
+              value={formatDuration(report.totalSeconds)}
+              meta={`${report.totalCount} ${report.totalCount === 1 ? 'entry' : 'entries'}`}
+              tone="primary"
+            />
+            <StatCard label="Groups" value={report.groups.length} meta={groupLabelHeader} />
+            <StatCard
+              label="From"
+              value={report.from ? formatShortDate(report.from) : 'All time'}
+              meta={report.from ?? 'No start limit'}
+            />
+            <StatCard
+              label="To"
+              value={report.to ? formatShortDate(report.to) : 'Today'}
+              meta={report.to ?? 'No end limit'}
+            />
+          </div>
+
+          {report.groups.length === 0 ? (
+            <EmptyState
+              icon={<Icon d={icons.reports} size={24} />}
+              title="No time entries match these filters"
+              description="Try a wider date range, or clear the project, tag, and member filters."
+              action={
+                <Button variant="secondary" onClick={handleResetFilters}>
+                  Clear filters
+                </Button>
+              }
+            />
+          ) : (
+            <>
+              <Card
+                title={`${groupLabelHeader} breakdown`}
+                subtitle={`${report.groups.length} ${report.groups.length === 1 ? 'group' : 'groups'} · top ${Math.min(report.groups.length, 12)} shown`}
+              >
+                <BarChart data={chartData} height={180} formatValue={formatDurationShort} />
+              </Card>
+
+              <Card title="Report details">
+                <TableContainer>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        {showGroupColumn && <th>{groupLabelHeader}</th>}
+                        <th className="num">Entries</th>
+                        <th className="num">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.groups.map((group) => (
+                        <tr key={group.key}>
+                          <td>
+                            <span className="tabular">
+                              {group.date ?? '—'}
+                              {group.endDate && group.date && group.endDate !== group.date
+                                ? ` – ${group.endDate}`
+                                : ''}
+                            </span>
+                          </td>
+                          {showGroupColumn && <td>{group.label}</td>}
+                          <td className="num">{group.count}</td>
+                          <td className="num tabular">{formatDuration(group.totalSeconds)}</td>
+                        </tr>
+                      ))}
+                      <tr className="report-total-row">
+                        <td>—</td>
+                        {showGroupColumn && <td>Total</td>}
+                        <td className="num">{report.totalCount}</td>
+                        <td className="num tabular">{formatDuration(report.totalSeconds)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </TableContainer>
+              </Card>
+            </>
+          )}
+        </>
+      ) : (
+        <EmptyState
+          icon={<Icon d={icons.reports} size={24} />}
+          title="No report generated yet"
+          description="Pick a date range or preset, then generate a report from your tracked time."
+        />
       )}
-    </section>
+    </>
   )
 }

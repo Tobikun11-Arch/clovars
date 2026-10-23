@@ -67,6 +67,30 @@ export function formatDateTime(iso: string): string {
   })
 }
 
+function parseDateOnly(iso: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : new Date(iso)
+}
+
+export function formatDate(iso: string): string {
+  const date = parseDateOnly(iso)
+
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
+
+export function formatShortDate(iso: string): string {
+  const date = parseDateOnly(iso)
+
+  if (Number.isNaN(date.getTime())) return iso
+
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 export function isToday(iso: string): boolean {
   const date = new Date(iso)
 

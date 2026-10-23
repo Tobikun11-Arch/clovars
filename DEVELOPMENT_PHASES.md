@@ -160,6 +160,41 @@ This plan breaks the roadmap into phases where **each phase delivers matching fr
 
 ---
 
+## UI Redesign — Phase 2 (Layout & Page System)
+**Goal:** Replace the ad-hoc UI with one layout system, shared controls, and full loading/empty/error states without changing API calls, data models, auth, or timer behavior.
+
+**Foundation**
+- [x] Route audit of every screen (raw controls, hard-coded colors, missing states, overflow, focus)
+- [x] Layout tokens (`--sidebar-w`, `--topbar-h`, page widths, radii, ring, z-index, motion)
+- [x] Shared shell: sidebar + workspace menu + collapsible Work sub-routes + top bar + offline banner
+- [x] Page width system (`narrow` / `default` / `wide`) driven by route metadata
+- [x] Shared primitives: Button, IconButton, Field, Input, Select, Textarea, Checkbox, PasswordInput, SearchInput
+- [x] Shared states: Skeleton, EmptyState, ErrorState, Spinner
+- [x] Shared overlays: Modal, Drawer, confirm dialog, toasts, focus trap + Esc + focus restore
+- [x] Light theme, tabular numbers, 150 ms transitions, reduced-motion support
+- [x] Window title `Clovars`, icon on all platforms, `minWidth 360`, `minHeight 600`
+
+**Pages migrated**
+- [x] Auth screens (login, register, verify, forgot, reset) with back links, show/hide password, validation and loading
+- [x] Time tracker (timer card, today summary, grouped entries, manual entry drawer, delete confirm)
+- [x] Work pages (Projects, Clients, Tasks, Tags) as list-first tables with search/filter and drawer forms
+- [x] Team page (members table, role badges, invite drawer, copyable codes, invite history)
+- [x] Profile (account, password, preferences, session) at narrow width
+- [x] Dashboard (KPI cards, weekly chart, top projects, recent entries, retry/skeleton)
+- [x] Reports (week/month presets, filters, summary cards, chart, grouped table, summary + detailed CSV)
+- [x] 404 and error boundary
+- [x] `docs/LAYOUT.md`
+
+**Verification (manual)**
+- [ ] No raw/unstyled inputs, selects, or buttons remain
+- [ ] Only the content area scrolls; no horizontal page scroll at 360/768/1024/1280/1920
+- [ ] Every data screen has loading, empty, and error + Retry states
+- [ ] Esc closes modals/drawers and focus returns to the trigger
+- [ ] Workspace menu and Work sub-routes highlight only the current route
+- [ ] `npm run typecheck`, `npm run lint`, `npm run build` pass
+
+---
+
 ## Phase 6 — Weekly Timesheets & Approvals (Planned)
 **Goal:** Weekly reports are generated automatically. Admins/Owners review and approve them; members do not submit timesheets manually.
 

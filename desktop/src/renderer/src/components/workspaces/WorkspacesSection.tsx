@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import {
   acceptInvite,
   createInvite,
-  createWorkspace,
   fetchInvites,
   fetchMembers,
   fetchMyInvites,
@@ -12,57 +11,73 @@ import {
   updateMemberRole
 } from '../../api/workspaces'
 import type { Invite, WorkspaceMember } from '../../types/workspace'
-import { WorkspaceSwitcher } from './WorkspaceSwitcher'
-import { WorkspaceNameForm } from './WorkspaceNameForm'
-import { JoinWithCodeForm } from './JoinWithCodeForm'
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Section,
+  Inline,
+  Skeleton,
+  confirmDialog,
+  showToast
+} from '../ui'
+import { Icon, icons } from '../icons'
 import { MembersPanel } from './MembersPanel'
 import { InvitesPanel } from './InvitesPanel'
+import { CreateWorkspaceDialog, JoinWorkspaceDialog } from './WorkspaceDialogs'
+import { WorkspaceOnboarding } from './WorkspaceOnboarding'
 
 interface WorkspacesSectionProps {
   currentUserId: string | null
 }
 
 export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): React.JSX.Element {
-  const { workspaces, activeId: activeWorkspaceId, activeWorkspace, refresh } = useWorkspace()
+  const { workspaces, activeWorkspace, refresh } = useWorkspace()
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [invites, setInvites] = useState<Invite[]>([])
   const [myInvites, setMyInvites] = useState<Invite[]>([])
-  const [mode, setMode] = useState<'idle' | 'create' | 'join'>('idle')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [pageLoading, setPageLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [joinOpen, setJoinOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   const currentRole = activeWorkspace?.role ?? 'member'
   const canManageInvites = currentRole === 'owner' || currentRole === 'admin'
 
-  const loadWorkspaces = useCallback(
-    async (preferredId?: string): Promise<void> => {
-      await refresh(preferredId)
-    },
-    [refresh]
-  )
-
   useEffect(() => {
     let cancelled = false
-    async function bootstrap(): Promise<void> {
+
+    async function loadInvitesForMe(): Promise<void> {
       try {
-        await refresh()
         const pending = await fetchMyInvites()
         if (!cancelled) setMyInvites(pending)
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load workspaces')
+      } catch {
+        /* Non-critical: the invite banner simply won't show. */
       }
     }
-    void bootstrap()
+
+    void loadInvitesForMe()
     return () => {
       cancelled = true
     }
-  }, [refresh])
+  }, [reloadKey])
 
   useEffect(() => {
+    if (!activeWorkspace) return
+
+    const workspaceId = activeWorkspace.id
+    const role = activeWorkspace.role
     let cancelled = false
 
-    async function loadWorkspaceData(workspaceId: string, role: string): Promise<void> {
+    async function load(): Promise<void> {
+      setPageLoading(true)
+      setLoadError(null)
+
       try {
         const list = await fetchMembers(workspaceId)
         if (cancelled) return
@@ -76,100 +91,56 @@ export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): Re
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not load members')
+          setLoadError(err instanceof Error ? err.message : 'Could not load workspace members')
         }
+      } finally {
+        if (!cancelled) setPageLoading(false)
       }
     }
 
-    if (activeWorkspace) {
-      void loadWorkspaceData(activeWorkspace.id, activeWorkspace.role)
-    }
-
+    void load()
     return () => {
       cancelled = true
     }
-  }, [activeWorkspace])
-
-  function handleSelect(workspaceId: string): void {
-    refresh(workspaceId)
-    setError(null)
-    setInfo(null)
-  }
-
-  async function handleCreateWorkspace(name: string): Promise<void> {
-    setLoading(true)
-    setError(null)
-    try {
-      const workspace = await createWorkspace(name)
-      await loadWorkspaces(workspace.id)
-      setMode('idle')
-      setInfo(`Workspace "${workspace.name}" created. You are the owner.`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create workspace')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleJoinWithCode(code: string): Promise<void> {
-    setLoading(true)
-    setError(null)
-    try {
-      const workspace = await acceptInvite(code)
-      await loadWorkspaces(workspace.id)
-      setMode('idle')
-      setInfo(`You joined "${workspace.name}".`)
-      setMyInvites(await fetchMyInvites())
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not join workspace')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleAcceptMyInvite(invite: Invite): Promise<void> {
-    setLoading(true)
-    setError(null)
-    try {
-      const workspace = await acceptInvite(invite.code)
-      await loadWorkspaces(workspace.id)
-      setMyInvites(await fetchMyInvites())
-      setInfo(`You joined "${workspace.name}".`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not accept invite')
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [activeWorkspace, reloadKey])
 
   async function handleChangeRole(
     member: WorkspaceMember,
     role: 'admin' | 'member'
   ): Promise<void> {
     if (!activeWorkspace) return
-    setLoading(true)
-    setError(null)
+    setBusy(true)
     try {
       await updateMemberRole(activeWorkspace.id, member.id, role)
       setMembers(await fetchMembers(activeWorkspace.id))
+      showToast(`${member.email} is now ${role}.`, 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not change role')
+      showToast(err instanceof Error ? err.message : 'Could not change role', 'error')
     } finally {
-      setLoading(false)
+      setBusy(false)
     }
   }
 
   async function handleRemoveMember(member: WorkspaceMember): Promise<void> {
     if (!activeWorkspace) return
-    setLoading(true)
-    setError(null)
+
+    const confirmed = await confirmDialog({
+      title: `Remove ${member.email}?`,
+      message: 'They will lose access to this workspace. Their tracked time is kept.',
+      confirmLabel: 'Remove member',
+      danger: true
+    })
+    if (!confirmed) return
+
+    setBusy(true)
     try {
       await removeMember(activeWorkspace.id, member.id)
       setMembers(await fetchMembers(activeWorkspace.id))
+      showToast(`${member.email} was removed.`, 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not remove member')
+      showToast(err instanceof Error ? err.message : 'Could not remove member', 'error')
     } finally {
-      setLoading(false)
+      setBusy(false)
     }
   }
 
@@ -178,117 +149,236 @@ export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): Re
     role: 'admin' | 'member'
   ): Promise<void> {
     if (!activeWorkspace) return
-    setLoading(true)
-    setError(null)
+    setBusy(true)
     try {
       const invite = await createInvite(activeWorkspace.id, email, role)
       setInvites(await fetchInvites(activeWorkspace.id))
-      setInfo(
+      showToast(
         email
-          ? `Invite sent to ${email}. Invite code: ${invite.code}`
-          : `Invite created. Share code: ${invite.code}`
+          ? `Invite sent to ${email}. Code: ${invite.code}`
+          : `Invite created. Share code: ${invite.code}`,
+        'success'
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create invite')
+      showToast(err instanceof Error ? err.message : 'Could not create invite', 'error')
     } finally {
-      setLoading(false)
+      setBusy(false)
     }
   }
 
   async function handleRevokeInvite(invite: Invite): Promise<void> {
     if (!activeWorkspace) return
-    setLoading(true)
-    setError(null)
+
+    const confirmed = await confirmDialog({
+      title: 'Revoke invite?',
+      message: `The code ${invite.code} will stop working immediately.`,
+      confirmLabel: 'Revoke invite',
+      danger: true
+    })
+    if (!confirmed) return
+
+    setBusy(true)
     try {
       await revokeInvite(activeWorkspace.id, invite.id)
       setInvites(await fetchInvites(activeWorkspace.id))
+      showToast('Invite revoked.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not revoke invite')
+      showToast(err instanceof Error ? err.message : 'Could not revoke invite', 'error')
     } finally {
-      setLoading(false)
+      setBusy(false)
     }
   }
 
+  async function handleAcceptMyInvite(invite: Invite): Promise<void> {
+    setBusy(true)
+    try {
+      const workspace = await acceptInvite(invite.code)
+      await refresh(workspace.id)
+      setMyInvites(await fetchMyInvites())
+      showToast(`You joined "${workspace.name}".`, 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not accept invite', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!activeWorkspace) {
+    return (
+      <>
+        {myInvites.length > 0 && (
+          <Section
+            title="Invites for you"
+            description="Accept an invite to join a teammate's workspace."
+          >
+            <div className="card">
+              <div className="card__body">
+                {myInvites.map((invite) => (
+                  <div className="row-between" key={invite.id}>
+                    <div className="cell-stack">
+                      <span className="cell-primary">{invite.workspaceName ?? 'Workspace'}</span>
+                      <span className="cell-sub">
+                        Role: {invite.role} · Code: <code>{invite.code}</code>
+                      </span>
+                    </div>
+                    <Button
+                      variant="primary"
+                      loading={busy}
+                      onClick={() => void handleAcceptMyInvite(invite)}
+                    >
+                      Accept invite
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+        )}
+
+        <WorkspaceOnboarding
+          onCreate={() => setCreateOpen(true)}
+          onJoin={() => setJoinOpen(true)}
+        />
+
+        <CreateWorkspaceDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+        <JoinWorkspaceDialog open={joinOpen} onClose={() => setJoinOpen(false)} />
+      </>
+    )
+  }
+
+  const membersLoading = pageLoading && members.length === 0
+
   return (
-    <section className="workspaces-section">
-      <h2>Workspaces</h2>
-
-      {error && <p className="error">{error}</p>}
-      {info && <p className="info">{info}</p>}
-
-      <WorkspaceSwitcher
-        workspaces={workspaces}
-        activeWorkspaceId={activeWorkspaceId}
-        onSelect={handleSelect}
-        onCreate={() => setMode('create')}
-        onJoinWithCode={() => setMode('join')}
-      />
-
-      {mode === 'create' && (
-        <WorkspaceNameForm
-          title="Create workspace"
-          submitLabel="Create workspace"
-          loading={loading}
-          onSubmit={handleCreateWorkspace}
-          onCancel={() => setMode('idle')}
-        />
-      )}
-
-      {mode === 'join' && (
-        <JoinWithCodeForm
-          loading={loading}
-          onSubmit={handleJoinWithCode}
-          onCancel={() => setMode('idle')}
-        />
-      )}
-
+    <>
       {myInvites.length > 0 && (
-        <section className="my-invites">
-          <h3>Invites for you</h3>
-          <ul>
-            {myInvites.map((invite) => (
-              <li key={invite.id}>
-                <span>
-                  {invite.workspaceName} — role {invite.role}
-                </span>
-                <code>{invite.code}</code>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => void handleAcceptMyInvite(invite)}
-                >
-                  Accept
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Section title="Invites for you">
+          <div className="card">
+            <div className="card__body">
+              {myInvites.map((invite) => (
+                <div className="row-between" key={invite.id}>
+                  <div className="cell-stack">
+                    <span className="cell-primary">{invite.workspaceName ?? 'Workspace'}</span>
+                    <span className="cell-sub">
+                      Role: {invite.role} · Code: <code>{invite.code}</code>
+                    </span>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    loading={busy}
+                    onClick={() => void handleAcceptMyInvite(invite)}
+                  >
+                    Accept
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Section>
       )}
 
-      {activeWorkspace && (
-        <div className="workspace-details">
-          <h3>
-            {activeWorkspace.name}{' '}
-            <span className={`role-badge role-${currentRole}`}>{currentRole}</span>
-          </h3>
-          <MembersPanel
-            members={members}
-            currentUserId={currentUserId}
-            currentRole={currentRole}
-            loading={loading}
-            onChangeRole={handleChangeRole}
-            onRemove={handleRemoveMember}
-          />
-          {canManageInvites && (
-            <InvitesPanel
-              invites={invites}
-              loading={loading}
-              onCreate={handleCreateInvite}
-              onRevoke={handleRevokeInvite}
-            />
-          )}
+      <Card
+        title="Workspace"
+        subtitle={`You are ${currentRole} · ${members.length} ${members.length === 1 ? 'member' : 'members'}`}
+        actions={
+          <Inline gap={2}>
+            <Badge
+              variant={
+                currentRole === 'owner'
+                  ? 'primary'
+                  : currentRole === 'admin'
+                    ? 'success'
+                    : 'neutral'
+              }
+            >
+              {currentRole}
+            </Badge>
+            {canManageInvites && (
+              <Button
+                variant="primary"
+                icon={<Icon d={icons.plus} />}
+                onClick={() => setInviteOpen(true)}
+              >
+                Invite people
+              </Button>
+            )}
+          </Inline>
+        }
+      >
+        <div className="detail-list">
+          <div className="detail-row">
+            <span className="detail-row__label">Workspace ID</span>
+            <span className="detail-row__value">
+              <code>{activeWorkspace.id}</code>
+            </span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-row__label">Workspaces you belong to</span>
+            <span className="detail-row__value">{workspaces.length}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-row__label">Your permissions</span>
+            <span className="detail-row__value">
+              {currentRole === 'owner'
+                ? 'Full access, roles, invites and billing'
+                : currentRole === 'admin'
+                  ? 'Manage members, invites and all time'
+                  : 'Track your own time'}
+            </span>
+          </div>
         </div>
+      </Card>
+
+      {loadError ? (
+        <ErrorState
+          title="Could not load workspace"
+          message={loadError}
+          onRetry={() => setReloadKey((key) => key + 1)}
+        />
+      ) : membersLoading ? (
+        <div className="card">
+          <div className="card__body">
+            <Skeleton height={28} width="30%" />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </div>
+        </div>
+      ) : (
+        <MembersPanel
+          members={members}
+          currentUserId={currentUserId}
+          currentRole={currentRole}
+          loading={busy}
+          onChangeRole={handleChangeRole}
+          onRemove={handleRemoveMember}
+        />
       )}
-    </section>
+
+      {canManageInvites && (
+        <InvitesPanel
+          invites={invites}
+          loading={busy}
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          onCreate={handleCreateInvite}
+          onRevoke={handleRevokeInvite}
+        />
+      )}
+
+      {members.length === 0 && !membersLoading && !loadError && (
+        <EmptyState
+          title="No members found"
+          description="Reload the page to fetch the latest member list."
+          action={
+            <Button variant="secondary" onClick={() => setReloadKey((key) => key + 1)}>
+              Refresh
+            </Button>
+          }
+        />
+      )}
+
+      <CreateWorkspaceDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      <JoinWorkspaceDialog open={joinOpen} onClose={() => setJoinOpen(false)} />
+    </>
   )
 }

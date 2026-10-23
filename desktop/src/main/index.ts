@@ -144,10 +144,12 @@ function createWindow(): void {
     width: 1280,
     height: 800,
     minWidth: 360,
-    minHeight: 500,
+    minHeight: 600,
+    title: 'Clovars',
+    backgroundColor: '#f6f7f9',
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false

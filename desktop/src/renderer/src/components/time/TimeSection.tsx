@@ -14,11 +14,22 @@ import { createTask, fetchProjects, fetchTags, fetchTasks } from '../../api/work
 import type { Project, Tag, Task } from '../../types/work'
 import type { ManualTimeEntryInput, StartTimerInput, TimeEntry } from '../../types/time'
 import { formatDuration, formatDurationShort, isToday } from '../../utils/time'
+import {
+  Badge,
+  Button,
+  Card,
+  Divider,
+  Drawer,
+  ErrorState,
+  Section,
+  Skeleton,
+  confirmDialog,
+  showToast
+} from '../ui'
+import { Icon, icons } from '../icons'
 import { EntriesList } from './EntriesList'
 import { ManualEntryForm } from './ManualEntryForm'
 import { StartTimerForm } from './StartTimerForm'
-
-type TimeTab = 'timer' | 'manual'
 
 interface TimeSectionProps {
   running: TimeEntry | null
@@ -32,16 +43,17 @@ export function TimeSection({
   onRunningChange
 }: TimeSectionProps): React.JSX.Element {
   const { activeId, activeWorkspace } = useWorkspace()
-  const [tab, setTab] = useState<TimeTab>('timer')
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [tags, setTags] = useState<Tag[]>([])
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [formVersion, setFormVersion] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
+  const [pageLoading, setPageLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   const runningId = running?.id ?? null
   const runningPaused = running?.isPaused ?? false
@@ -53,6 +65,9 @@ export function TimeSection({
     let cancelled = false
 
     async function load(): Promise<void> {
+      setPageLoading(true)
+      setLoadError(null)
+
       try {
         const [nextProjects, nextTasks, nextTags, nextEntries] = await Promise.all([
           fetchProjects(workspaceId),
@@ -69,8 +84,10 @@ export function TimeSection({
         setEntries(nextEntries)
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not load time data')
+          setLoadError(err instanceof Error ? err.message : 'Could not load time data')
         }
+      } finally {
+        if (!cancelled) setPageLoading(false)
       }
     }
 
@@ -79,21 +96,18 @@ export function TimeSection({
     return () => {
       cancelled = true
     }
-  }, [activeId, runningId, runningPaused])
+  }, [activeId, runningId, runningPaused, reloadKey])
 
   async function handleStart(input: StartTimerInput): Promise<void> {
     if (!activeId) return
 
     setLoading(true)
-    setError(null)
-    setInfo(null)
-
     try {
       const entry = await startTimer(activeId, input)
       onRunningChange(entry)
-      setInfo('Timer started.')
+      showToast('Timer started.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not start the timer')
+      showToast(err instanceof Error ? err.message : 'Could not start the timer', 'error')
     } finally {
       setLoading(false)
     }
@@ -103,15 +117,12 @@ export function TimeSection({
     if (!running) return
 
     setLoading(true)
-    setError(null)
-    setInfo(null)
-
     try {
       await stopTimer(running.workspaceId)
       onRunningChange(null)
-      setInfo('Timer stopped.')
+      showToast('Timer stopped.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not stop the timer')
+      showToast(err instanceof Error ? err.message : 'Could not stop the timer', 'error')
     } finally {
       setLoading(false)
     }
@@ -121,15 +132,12 @@ export function TimeSection({
     if (!running || running.isPaused) return
 
     setLoading(true)
-    setError(null)
-    setInfo(null)
-
     try {
       const entry = await pauseTimer(running.workspaceId)
       onRunningChange(entry)
-      setInfo('Timer paused.')
+      showToast('Timer paused.', 'info')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not pause the timer')
+      showToast(err instanceof Error ? err.message : 'Could not pause the timer', 'error')
     } finally {
       setLoading(false)
     }
@@ -139,15 +147,12 @@ export function TimeSection({
     if (!running || !running.isPaused) return
 
     setLoading(true)
-    setError(null)
-    setInfo(null)
-
     try {
       const entry = await resumeTimer(running.workspaceId)
       onRunningChange(entry)
-      setInfo('Timer resumed.')
+      showToast('Timer resumed.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not resume the timer')
+      showToast(err instanceof Error ? err.message : 'Could not resume the timer', 'error')
     } finally {
       setLoading(false)
     }
@@ -157,23 +162,21 @@ export function TimeSection({
     if (!activeId) return
 
     setLoading(true)
-    setError(null)
-    setInfo(null)
-
     try {
       if (editingEntry) {
         await updateTimeEntry(activeId, editingEntry.id, input)
-        setInfo('Time entry updated.')
+        showToast('Time entry updated.', 'success')
       } else {
         const entry = await createManualTimeEntry(activeId, input)
-        setInfo(`Time entry for ${formatDurationShort(entry.durationSeconds)} added.`)
+        showToast(`Added ${formatDurationShort(entry.durationSeconds)}.`, 'success')
         setFormVersion((version) => version + 1)
       }
 
       setEditingEntry(null)
+      setDrawerOpen(false)
       setEntries(await fetchTimeEntries(activeId))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save the time entry')
+      showToast(err instanceof Error ? err.message : 'Could not save the time entry', 'error')
     } finally {
       setLoading(false)
     }
@@ -182,21 +185,26 @@ export function TimeSection({
   async function handleDelete(entry: TimeEntry): Promise<void> {
     if (!activeId) return
 
-    if (!window.confirm(`Delete this ${formatDurationShort(entry.durationSeconds)} entry?`)) {
-      return
-    }
+    const confirmed = await confirmDialog({
+      title: 'Delete time entry?',
+      message: `This will permanently remove the ${formatDurationShort(entry.durationSeconds)} entry from ${entry.projectName ?? 'No project'}.`,
+      confirmLabel: 'Delete entry',
+      danger: true
+    })
+
+    if (!confirmed) return
 
     setLoading(true)
-    setError(null)
-    setInfo(null)
-
     try {
       await deleteTimeEntry(activeId, entry.id)
       setEntries(await fetchTimeEntries(activeId))
-      if (editingEntry?.id === entry.id) setEditingEntry(null)
-      setInfo('Time entry deleted.')
+      if (editingEntry?.id === entry.id) {
+        setEditingEntry(null)
+        setDrawerOpen(false)
+      }
+      showToast('Time entry deleted.', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not delete the time entry')
+      showToast(err instanceof Error ? err.message : 'Could not delete the time entry', 'error')
     } finally {
       setLoading(false)
     }
@@ -205,26 +213,30 @@ export function TimeSection({
   async function handleCreateTask(projectId: string, name: string): Promise<Task | null> {
     if (!activeId) return null
 
-    setError(null)
-    setInfo(null)
-
     try {
       const task = await createTask(activeId, { name, projectId })
       setTasks(await fetchTasks(activeId))
-      setInfo(`Task "${task.name}" created.`)
+      showToast(`Task "${task.name}" created.`, 'success')
       return task
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create the task')
+      showToast(err instanceof Error ? err.message : 'Could not create the task', 'error')
       return null
     }
   }
 
-  function handleEdit(entry: TimeEntry): void {
-    setEditingEntry(entry)
-    setTab('manual')
+  function openNewEntry(): void {
+    setEditingEntry(null)
+    setFormVersion((version) => version + 1)
+    setDrawerOpen(true)
   }
 
-  function handleCancelEdit(): void {
+  function handleEdit(entry: TimeEntry): void {
+    setEditingEntry(entry)
+    setDrawerOpen(true)
+  }
+
+  function closeDrawer(): void {
+    setDrawerOpen(false)
     setEditingEntry(null)
   }
 
@@ -239,55 +251,53 @@ export function TimeSection({
     (running && running.workspaceId === activeId && !runningIsListed && isToday(running.startTime)
       ? runningElapsedSeconds
       : 0)
+  const todayCount = entries.filter((entry) => isToday(entry.startTime)).length
 
   return (
-    <section className="work-section time-section">
-      <h2>Time</h2>
-      <p className="muted">Start a live timer or add time entries manually.</p>
-
-      {error && <p className="error">{error}</p>}
-      {info && <p className="info">{info}</p>}
-
-      {!activeId ? (
-        <p className="muted">You are not in a workspace yet. Create one in Team.</p>
-      ) : (
-        <>
-          <div className="page-header" style={{ marginBottom: 'var(--sp-2)' }}>
-            <div className="page-header-text">
-              <h2 style={{ margin: 0 }}>Time</h2>
-              <p style={{ margin: 0 }}>
-                {activeWorkspace
-                  ? `${activeWorkspace.name} · ${activeWorkspace.role}`
-                  : 'No workspace selected'}
-              </p>
-            </div>
-          </div>
-
-          <p className="today-total">
-            Today (timer + manual): <strong>{formatDuration(todaysTotalSeconds)}</strong>
-          </p>
-
-          {running && (
-            <div className={running.isPaused ? 'running-timer paused' : 'running-timer'}>
-              <div className="running-timer-head">
+    <>
+      <div className="time-top">
+        <Card
+          title={running ? 'Running timer' : 'Start a timer'}
+          subtitle={
+            running
+              ? (running.workspaceName ?? activeWorkspace?.name ?? undefined)
+              : 'Pick a project, add a note, and start tracking.'
+          }
+          actions={
+            running ? (
+              <Badge variant={running.isPaused ? 'warning' : 'success'}>
+                {running.isPaused ? 'Paused' : 'Live'}
+              </Badge>
+            ) : undefined
+          }
+        >
+          {running ? (
+            <div className="running-timer">
+              <div className="timer-head">
                 <span className={running.isPaused ? 'timer-dot paused' : 'timer-dot'} />
-                <span className="running-timer-clock">{formatDuration(runningElapsedSeconds)}</span>
-                {running.isPaused && <span className="role-badge role-admin">paused</span>}
+                <span className="running-timer__clock">
+                  {formatDuration(runningElapsedSeconds)}
+                </span>
+              </div>
+
+              <div className="running-timer__meta">
                 <span className="work-name">{running.projectName ?? 'No project'}</span>
-                {running.taskName && <span className="muted">{running.taskName}</span>}
+                {running.taskName && <span>· {running.taskName}</span>}
                 {running.workspaceId !== activeId && running.workspaceName && (
-                  <span className="role-badge role-admin">in {running.workspaceName}</span>
+                  <Badge variant="primary">in {running.workspaceName}</Badge>
                 )}
               </div>
 
-              {running.description && <p className="muted">{running.description}</p>}
+              {running.description && (
+                <p className="running-timer__description">{running.description}</p>
+              )}
 
               {running.tags.length > 0 && (
-                <div className="time-entry-tags">
+                <div className="tag-picker">
                   {running.tags.map((tag) => (
                     <span
                       key={tag.id}
-                      className="tag-chip"
+                      className="chip"
                       style={{ borderColor: tag.color, color: tag.color }}
                     >
                       {tag.name}
@@ -296,85 +306,114 @@ export function TimeSection({
                 </div>
               )}
 
-              <div className="running-timer-actions">
-                <button
-                  type="button"
-                  disabled={loading}
+              <div className="running-timer__actions">
+                <Button
+                  variant={running.isPaused ? 'primary' : 'secondary'}
+                  loading={loading}
                   onClick={() => void (running.isPaused ? handleResume() : handlePause())}
                 >
-                  {running.isPaused ? 'Resume' : 'Pause'}
-                </button>
-                <button
-                  type="button"
-                  className="danger"
-                  disabled={loading}
-                  onClick={() => void handleStop()}
-                >
-                  {loading ? 'Stopping...' : 'Stop timer'}
-                </button>
+                  {running.isPaused ? 'Resume timer' : 'Pause timer'}
+                </Button>
+                <Button variant="danger" loading={loading} onClick={() => void handleStop()}>
+                  Stop timer
+                </Button>
               </div>
             </div>
-          )}
-
-          <div className="tabs">
-            <button
-              type="button"
-              className={tab === 'timer' ? 'tab active' : 'tab'}
-              onClick={() => setTab('timer')}
-            >
-              Timer
-            </button>
-            <button
-              type="button"
-              className={tab === 'manual' ? 'tab active' : 'tab'}
-              onClick={() => setTab('manual')}
-            >
-              {editingEntry ? 'Edit entry' : 'Manual entry'}
-            </button>
-          </div>
-
-          {tab === 'timer' &&
-            (running ? (
-              <p className="muted">
-                A timer is already running or paused. Stop it before starting a new one.
-              </p>
-            ) : (
-              <StartTimerForm
-                projects={projects}
-                tasks={tasks}
-                tags={tags}
-                loading={loading}
-                onStart={handleStart}
-                onCreateTask={handleCreateTask}
-              />
-            ))}
-
-          {tab === 'manual' && (
-            <ManualEntryForm
-              key={editingEntry?.id ?? `new-${formVersion}`}
-              entry={editingEntry}
+          ) : (
+            <StartTimerForm
               projects={projects}
               tasks={tasks}
               tags={tags}
               loading={loading}
-              onSubmit={handleManualSubmit}
-              onCancelEdit={handleCancelEdit}
+              onStart={handleStart}
               onCreateTask={handleCreateTask}
             />
           )}
+        </Card>
 
-          <section className="work-panel">
-            <h3>Entries by day</h3>
-            <EntriesList
-              entries={entries}
-              runningElapsedSeconds={runningElapsedSeconds}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={(entry) => void handleDelete(entry)}
-            />
-          </section>
-        </>
-      )}
-    </section>
+        <Card title="Today">
+          <div className="stat__value tabular">{formatDuration(todaysTotalSeconds)}</div>
+          <p className="muted">
+            {todayCount} saved {todayCount === 1 ? 'entry' : 'entries'} today
+          </p>
+          <Divider />
+          <div className="detail-list">
+            <div className="detail-row">
+              <span className="detail-row__label">Workspace</span>
+              <span className="detail-row__value">{activeWorkspace?.name ?? '—'}</span>
+            </div>
+            <div className="detail-row">
+              <span className="detail-row__label">Your role</span>
+              <span className="detail-row__value">{activeWorkspace?.role ?? '—'}</span>
+            </div>
+            <div className="detail-row">
+              <span className="detail-row__label">Timer</span>
+              <span className="detail-row__value">
+                {running ? (running.isPaused ? 'Paused' : 'Running') : 'Idle'}
+              </span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Section
+        title="Time entries"
+        description="Entries are grouped by day. Running timers update live."
+        actions={
+          <Button variant="primary" icon={<Icon d={icons.plus} />} onClick={openNewEntry}>
+            Add entry
+          </Button>
+        }
+      >
+        {loadError ? (
+          <ErrorState
+            title="Could not load time entries"
+            message={loadError}
+            onRetry={() => setReloadKey((key) => key + 1)}
+          />
+        ) : pageLoading ? (
+          <div className="card">
+            <div className="card__body">
+              <Skeleton height={28} />
+              <Skeleton height={52} />
+              <Skeleton height={52} />
+              <Skeleton height={52} />
+            </div>
+          </div>
+        ) : (
+          <EntriesList
+            entries={entries}
+            runningElapsedSeconds={runningElapsedSeconds}
+            loading={loading}
+            onEdit={handleEdit}
+            onDelete={(entry) => void handleDelete(entry)}
+            onAdd={openNewEntry}
+          />
+        )}
+      </Section>
+
+      <Drawer
+        open={drawerOpen}
+        title={editingEntry ? 'Edit time entry' : 'Add time entry'}
+        description={
+          editingEntry
+            ? 'Adjust the details, then save your changes.'
+            : 'Log work you already completed.'
+        }
+        onClose={closeDrawer}
+      >
+        <ManualEntryForm
+          key={editingEntry?.id ?? `new-${formVersion}`}
+          entry={editingEntry}
+          projects={projects}
+          tasks={tasks}
+          tags={tags}
+          loading={loading}
+          onSubmit={handleManualSubmit}
+          onCancelEdit={closeDrawer}
+          onCreateTask={handleCreateTask}
+        />
+      </Drawer>
+    </>
   )
 }

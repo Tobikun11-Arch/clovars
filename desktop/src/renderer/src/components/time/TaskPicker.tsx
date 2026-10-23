@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Task } from '../../types/work'
+import { Button, Input, Select } from '../ui'
 
 interface TaskPickerProps {
   projectId: string
@@ -43,9 +44,9 @@ export function TaskPicker({
   }
 
   return (
-    <label>
-      Task (optional)
-      <select
+    <div className="field">
+      <span className="field__label">Task</span>
+      <Select
         value={selectedTaskId}
         onChange={(event) => onChange(event.target.value)}
         disabled={!projectId || visibleTasks.length === 0}
@@ -56,13 +57,13 @@ export function TaskPicker({
             {task.name}
           </option>
         ))}
-      </select>
+      </Select>
       {canCreateTask && (
         <div className="task-create">
-          <input
+          <Input
             value={newTaskName}
             maxLength={200}
-            placeholder="New task name"
+            placeholder="This project has no tasks — add one"
             disabled={disabled || creating}
             onChange={(event) => setNewTaskName(event.target.value)}
             onKeyDown={(event) => {
@@ -72,15 +73,16 @@ export function TaskPicker({
               }
             }}
           />
-          <button
-            type="button"
+          <Button
+            size="sm"
             disabled={disabled || creating || !trimmedName}
+            loading={creating}
             onClick={() => void handleCreateTask()}
           >
-            {creating ? 'Adding...' : 'Add task'}
-          </button>
+            Add task
+          </Button>
         </div>
       )}
-    </label>
+    </div>
   )
 }

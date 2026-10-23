@@ -15,7 +15,7 @@ interface UseRunningTimerOptions {
   onError: (message: string | null) => void
 }
 
-interface UseRunningTimerResult {
+export interface UseRunningTimerResult {
   running: TimeEntry | null
   elapsedSeconds: number
   applyRunning: (entry: TimeEntry | null) => void
