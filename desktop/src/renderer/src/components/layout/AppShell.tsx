@@ -311,12 +311,12 @@ export function AppShell({
             type="button"
             className="user-card"
             onClick={() => go('/profile')}
-            title={user.email}
+            title={user?.email ?? ''}
           >
-            <Avatar name={user.email} size="sm" />
+            <Avatar name={user?.email} size="sm" />
             <span className="user-card__text">
-              <span className="user-card__name">{user.email.split('@')[0]}</span>
-              <span className="user-card__email">{user.email}</span>
+              <span className="user-card__name">{user?.email?.split('@')[0] ?? ''}</span>
+              <span className="user-card__email">{user?.email ?? ''}</span>
             </span>
           </button>
           <div className="sidebar__footer-actions">

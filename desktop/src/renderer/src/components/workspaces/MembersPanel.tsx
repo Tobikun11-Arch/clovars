@@ -14,7 +14,7 @@ interface MembersPanelProps {
 
 function memberName(member: WorkspaceMember): string {
   const name = [member.firstName, member.lastName].filter(Boolean).join(' ')
-  return name || member.email.split('@')[0]
+  return name || (member.email?.split('@')[0] ?? 'Unknown')
 }
 
 function roleVariant(role: WorkspaceRole): 'primary' | 'success' | 'neutral' {

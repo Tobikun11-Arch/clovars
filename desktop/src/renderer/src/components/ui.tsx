@@ -509,10 +509,10 @@ export function Tabs<T extends string>({
 
 /* ---------- Display helpers ---------- */
 export function Avatar({
-  name,
+  name = '',
   size = 'md'
 }: {
-  name: string
+  name?: string
   size?: 'sm' | 'md' | 'lg'
 }): React.JSX.Element {
   const initials = name
