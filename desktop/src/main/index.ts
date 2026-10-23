@@ -476,10 +476,14 @@ app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.clovars.desktop')
 
   // Configure auto-updater (GitHub releases will auto-detect from electron-builder config)
-  autoUpdater.checkForUpdatesAndNotify()
+  autoUpdater.checkForUpdates()
 
   autoUpdater.on('update-available', (info) => {
     console.log('Update available:', info.version)
+  })
+
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('No update available')
   })
 
   autoUpdater.on('update-downloaded', (info) => {
