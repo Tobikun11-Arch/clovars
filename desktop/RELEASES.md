@@ -1,7 +1,7 @@
 # Clovars Desktop - Release Guide
 
 To release a new version:
-# 1. Update version in package.json (npm i)
+# 1. Update version in package.json change "version": "1.0.0" current  to + "1.0.1"
 # 2. Commit and push
 git add package.json
 git commit -m "chore: bump version to 1.0.1"
