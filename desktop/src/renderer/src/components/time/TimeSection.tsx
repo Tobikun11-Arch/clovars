@@ -13,6 +13,7 @@ import {
 import { createTask, fetchProjects, fetchTags, fetchTasks } from '../../api/work'
 import type { Project, Tag, Task } from '../../types/work'
 import type { ManualTimeEntryInput, StartTimerInput, TimeEntry } from '../../types/time'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 import { formatDuration, formatDurationShort, isToday } from '../../utils/time'
 import {
   Badge,
@@ -23,6 +24,7 @@ import {
   ErrorState,
   Section,
   Skeleton,
+  SegmentedControl,
   confirmDialog,
   showToast
 } from '../ui'
@@ -30,6 +32,7 @@ import { Icon, icons } from '../icons'
 import { EntriesList } from './EntriesList'
 import { ManualEntryForm } from './ManualEntryForm'
 import { StartTimerForm } from './StartTimerForm'
+import { CircularProgress } from './CircularProgress'
 
 interface TimeSectionProps {
   running: TimeEntry | null
@@ -43,6 +46,7 @@ export function TimeSection({
   onRunningChange
 }: TimeSectionProps): React.JSX.Element {
   const { activeId, activeWorkspace } = useWorkspace()
+  const reducedMotion = useReducedMotion()
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [tags, setTags] = useState<Tag[]>([])
@@ -54,6 +58,7 @@ export function TimeSection({
   const [pageLoading, setPageLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [timerMode, setTimerMode] = useState<'timer' | 'manual'>('timer')
 
   const runningId = running?.id ?? null
   const runningPaused = running?.isPaused ?? false
@@ -225,9 +230,8 @@ export function TimeSection({
   }
 
   function openNewEntry(): void {
-    setEditingEntry(null)
+    setTimerMode('manual')
     setFormVersion((version) => version + 1)
-    setDrawerOpen(true)
   }
 
   function handleEdit(entry: TimeEntry): void {
@@ -257,11 +261,11 @@ export function TimeSection({
     <>
       <div className="time-top">
         <Card
-          title={running ? 'Running timer' : 'Start a timer'}
+          title="Timer"
           subtitle={
             running
               ? (running.workspaceName ?? activeWorkspace?.name ?? undefined)
-              : 'Pick a project, add a note, and start tracking.'
+              : activeWorkspace?.name
           }
           actions={
             running ? (
@@ -271,62 +275,97 @@ export function TimeSection({
             ) : undefined
           }
         >
-          {running ? (
-            <div className="running-timer">
-              <div className="timer-head">
-                <span className={running.isPaused ? 'timer-dot paused' : 'timer-dot'} />
-                <span className="running-timer__clock">
-                  {formatDuration(runningElapsedSeconds)}
-                </span>
-              </div>
+          <SegmentedControl
+            items={[
+              { value: 'timer', label: 'Timer' },
+              { value: 'manual', label: 'Manual entry' }
+            ]}
+            value={timerMode}
+            onChange={setTimerMode}
+            label="Timer mode"
+          />
 
-              <div className="running-timer__meta">
-                <span className="work-name">{running.projectName ?? 'No project'}</span>
-                {running.taskName && <span>· {running.taskName}</span>}
-                {running.workspaceId !== activeId && running.workspaceName && (
-                  <Badge variant="primary">in {running.workspaceName}</Badge>
-                )}
-              </div>
-
-              {running.description && (
-                <p className="running-timer__description">{running.description}</p>
-              )}
-
-              {running.tags.length > 0 && (
-                <div className="tag-picker">
-                  {running.tags.map((tag) => (
-                    <span
-                      key={tag.id}
-                      className="chip"
-                      style={{ borderColor: tag.color, color: tag.color }}
-                    >
-                      {tag.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="running-timer__actions">
-                <Button
-                  variant={running.isPaused ? 'primary' : 'secondary'}
-                  loading={loading}
-                  onClick={() => void (running.isPaused ? handleResume() : handlePause())}
+          {timerMode === 'timer' ? (
+            running ? (
+              <div className="timer-bar">
+                <CircularProgress
+                  progress={running.isPaused ? 0 : Math.min(1, runningElapsedSeconds / 3600)}
+                  size={140}
+                  strokeWidth={10}
+                  reducedMotion={reducedMotion}
                 >
-                  {running.isPaused ? 'Resume timer' : 'Pause timer'}
-                </Button>
-                <Button variant="danger" loading={loading} onClick={() => void handleStop()}>
-                  Stop timer
-                </Button>
+                  <div className="timer-bar__time">
+                    <span className="timer-bar__clock tabular">
+                      {formatDuration(runningElapsedSeconds)}
+                    </span>
+                    <span className="timer-bar__status">
+                      {running.isPaused ? 'Paused' : 'Running'}
+                    </span>
+                  </div>
+                </CircularProgress>
+
+                <div className="timer-bar__info">
+                  <div className="timer-bar__meta">
+                    <span className="work-name">{running.projectName ?? 'No project'}</span>
+                    {running.taskName && <span>· {running.taskName}</span>}
+                    {running.workspaceId !== activeId && running.workspaceName && (
+                      <Badge variant="primary">in {running.workspaceName}</Badge>
+                    )}
+                  </div>
+
+                  {running.description && (
+                    <p className="timer-bar__description">{running.description}</p>
+                  )}
+
+                  {running.tags.length > 0 && (
+                    <div className="tag-picker">
+                      {running.tags.map((tag) => (
+                        <span
+                          key={tag.id}
+                          className="chip"
+                          style={{ borderColor: tag.color, color: tag.color }}
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="timer-bar__actions">
+                    <Button
+                      variant={running.isPaused ? 'primary' : 'secondary'}
+                      loading={loading}
+                      onClick={() => void (running.isPaused ? handleResume() : handlePause())}
+                    >
+                      {running.isPaused ? 'Resume' : 'Pause'}
+                    </Button>
+                    <Button variant="danger" loading={loading} onClick={() => void handleStop()}>
+                      Stop
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <StartTimerForm
+                projects={projects}
+                tasks={tasks}
+                tags={tags}
+                loading={loading}
+                onStart={handleStart}
+                onCreateTask={handleCreateTask}
+              />
+            )
           ) : (
-            <StartTimerForm
+            <ManualEntryForm
+              entry={null}
               projects={projects}
               tasks={tasks}
               tags={tags}
               loading={loading}
-              onStart={handleStart}
+              onSubmit={handleManualSubmit}
+              onCancelEdit={() => setTimerMode('timer')}
               onCreateTask={handleCreateTask}
+              showCancel={false}
             />
           )}
         </Card>
@@ -394,16 +433,12 @@ export function TimeSection({
 
       <Drawer
         open={drawerOpen}
-        title={editingEntry ? 'Edit time entry' : 'Add time entry'}
-        description={
-          editingEntry
-            ? 'Adjust the details, then save your changes.'
-            : 'Log work you already completed.'
-        }
+        title="Edit time entry"
+        description="Adjust the details, then save your changes."
         onClose={closeDrawer}
       >
         <ManualEntryForm
-          key={editingEntry?.id ?? `new-${formVersion}`}
+          key={editingEntry?.id ?? `edit-${formVersion}`}
           entry={editingEntry}
           projects={projects}
           tasks={tasks}

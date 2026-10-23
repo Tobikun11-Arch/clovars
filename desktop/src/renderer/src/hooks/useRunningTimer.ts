@@ -46,7 +46,15 @@ export function useRunningTimer({
       elapsedSeconds: entry ? entry.durationSeconds : 0,
       label: entry
         ? (entry.projectName ?? entry.description ?? entry.workspaceName ?? 'Tracking time')
-        : ''
+        : '',
+      projectId: entry?.projectId ?? null,
+      taskId: entry?.taskId ?? null,
+      projectName: entry?.projectName ?? null,
+      taskName: entry?.taskName ?? null,
+      description: entry?.description ?? null,
+      tags: entry?.tags ?? [],
+      workspaceId: entry?.workspaceId ?? null,
+      workspaceName: entry?.workspaceName ?? null
     })
   }, [])
 
@@ -175,7 +183,15 @@ export function useRunningTimer({
       isPaused: false,
       startedAt: null,
       elapsedSeconds: 0,
-      label: ''
+      label: '',
+      projectId: null,
+      taskId: null,
+      projectName: null,
+      taskName: null,
+      description: null,
+      tags: [],
+      workspaceId: null,
+      workspaceName: null
     })
   }, [])
 

@@ -507,6 +507,35 @@ export function Tabs<T extends string>({
   )
 }
 
+/* ---------- Segmented Control ---------- */
+export function SegmentedControl<T extends string>({
+  items,
+  value,
+  onChange,
+  label
+}: {
+  items: Array<{ value: T; label: string }>
+  value: T
+  onChange: (value: T) => void
+  label?: string
+}): React.JSX.Element {
+  return (
+    <div className="segmented-control" role="group" aria-label={label}>
+      {items.map((item) => (
+        <button
+          key={item.value}
+          type="button"
+          aria-pressed={value === item.value}
+          className={cn('segmented-control__item', value === item.value && 'is-active')}
+          onClick={() => onChange(item.value)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /* ---------- Display helpers ---------- */
 export function Avatar({
   name = '',

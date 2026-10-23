@@ -17,6 +17,7 @@ export const ROUTES: Record<string, RouteMeta> = {
   '/verify': { title: 'Verify email', width: 'narrow', public: true },
   '/forgot': { title: 'Forgot password', width: 'narrow', public: true },
   '/reset': { title: 'Reset password', width: 'narrow', public: true },
+  '/mini': { title: 'Mini Timer', width: 'narrow', public: true },
   '/dashboard': { title: 'Dashboard', group: 'Analyze', width: 'wide', requiresWorkspace: true },
   '/time': { title: 'Time', group: 'Track', width: 'default', requiresWorkspace: true },
   '/reports': { title: 'Reports', group: 'Analyze', width: 'wide', requiresWorkspace: true },

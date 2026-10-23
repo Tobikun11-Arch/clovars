@@ -1418,6 +1418,47 @@ body {
 }
 
 /* ==========================================================================
+   Segmented Control
+   ========================================================================== */
+.segmented-control {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius);
+  background: var(--surface-3);
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.segmented-control__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition:
+    background var(--transition),
+    color var(--transition);
+  border: none;
+  cursor: pointer;
+}
+
+.segmented-control__item:hover {
+  color: var(--text);
+}
+
+.segmented-control__item.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+/* ==========================================================================
    Progress + bar chart
    ========================================================================== */
 .progress {
@@ -1938,6 +1979,97 @@ kbd {
   gap: var(--sp-4);
 }
 
+/* Timer bar */
+.timer-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  padding: var(--sp-4) 0;
+}
+
+.timer-bar__info {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.timer-bar__time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+.timer-bar__clock {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-bar__status {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-weight: var(--fw-medium);
+}
+
+.timer-bar__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.timer-bar__description {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.timer-bar__actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* Circular progress */
+.circular-progress {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.circular-progress__svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.circular-progress__track {
+  stroke: var(--surface-3);
+}
+
+.circular-progress__bar {
+  stroke: var(--primary);
+  stroke-linecap: round;
+  transform-origin: center;
+}
+
+.circular-progress__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .running-timer {
   display: flex;
   flex-direction: column;
@@ -2399,4 +2531,126 @@ kbd {
   .auth__title {
     font-size: var(--fs-xl);
   }
+}
+
+/* Mini timer widget */
+html.mini-timer-root,
+html.mini-timer-root body,
+html.mini-timer-root #root {
+  background: transparent;
+  overflow: hidden;
+  height: 100%;
+  min-height: 0;
+}
+
+.mini-timer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  height: 200px;
+  padding: 16px 12px 12px;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgb(15 23 42 / 0.16);
+  backdrop-filter: blur(10px);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.mini-timer__close,
+.mini-timer__actions,
+.mini-timer__actions .btn {
+  -webkit-app-region: no-drag;
+}
+
+.mini-timer__close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mini-timer__close:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.mini-timer__time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.mini-timer__clock {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.mini-timer__status {
+  font-size: 10px;
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mini-timer__project,
+.mini-timer__task {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.mini-timer__project {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.mini-timer__task {
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+.mini-timer__actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.mini-timer__actions .btn {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-timer {
+    backdrop-filter: none;
+  }
+}
+
+[data-reduce-motion='true'] .mini-timer {
+  backdrop-filter: none;
 }

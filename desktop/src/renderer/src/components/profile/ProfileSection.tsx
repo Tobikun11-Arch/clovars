@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import { ProfileForm } from '../auth/AuthForms'
 import type { AuthUser, ChangePasswordPayload } from '../../types/auth'
 import {
+  applyReduceMotionPreference,
+  isMiniTimerWidgetEnabled,
+  MINI_TIMER_WIDGET_KEY,
+  notifyPreferencesChanged,
+  REDUCE_MOTION_KEY,
+  WEEK_START_KEY
+} from '../../utils/preferences'
+import {
   Avatar,
   Badge,
   Button,
@@ -14,9 +22,6 @@ import {
   showToast
 } from '../ui'
 import { Icon, icons } from '../icons'
-
-const WEEK_START_KEY = 'clovars.weekStart'
-const REDUCE_MOTION_KEY = 'clovars.reduceMotion'
 
 interface ProfileSectionProps {
   user: AuthUser
@@ -35,9 +40,10 @@ export function ProfileSection({
   const [reduceMotion, setReduceMotion] = useState(
     () => localStorage.getItem(REDUCE_MOTION_KEY) === 'true'
   )
+  const [showMiniTimer, setShowMiniTimer] = useState(isMiniTimerWidgetEnabled)
 
   useEffect(() => {
-    document.documentElement.dataset.reduceMotion = String(reduceMotion)
+    applyReduceMotionPreference(reduceMotion)
   }, [reduceMotion])
 
   function handleWeekStart(next: string): void {
@@ -49,7 +55,26 @@ export function ProfileSection({
   function handleReduceMotion(next: boolean): void {
     setReduceMotion(next)
     localStorage.setItem(REDUCE_MOTION_KEY, String(next))
+    applyReduceMotionPreference(next)
+    notifyPreferencesChanged()
     showToast(next ? 'Reduced motion enabled.' : 'Reduced motion disabled.', 'success')
+  }
+
+  function handleMiniTimerWidget(next: boolean): void {
+    setShowMiniTimer(next)
+    localStorage.setItem(MINI_TIMER_WIDGET_KEY, String(next))
+    window.api?.setMiniTimerAutoShow(next)
+
+    if (next) {
+      window.api?.showMiniTimer()
+    } else {
+      window.api?.hideMiniTimer()
+    }
+
+    showToast(
+      next ? 'Mini timer widget enabled.' : 'Mini timer widget hidden.',
+      'success'
+    )
   }
 
   return (
@@ -99,6 +124,18 @@ export function ProfileSection({
             checked={reduceMotion}
             onChange={(event) => handleReduceMotion(event.target.checked)}
           />
+
+          <div>
+            <Checkbox
+              label="Show floating mini timer"
+              checked={showMiniTimer}
+              onChange={(event) => handleMiniTimerWidget(event.target.checked)}
+            />
+            <p className="field__hint">
+              Appears when you close Clovars while a timer is running. Toggle anytime with
+              Ctrl+Alt+T.
+            </p>
+          </div>
         </Stack>
       </Card>
 

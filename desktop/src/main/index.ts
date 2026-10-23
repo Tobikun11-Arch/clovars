@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Menu, Tray, nativeImage } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, globalShortcut } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -12,17 +12,36 @@ type TimerState = {
   startedAt: string | null
   elapsedSeconds: number
   label: string
+  projectId: string | null
+  taskId: string | null
+  projectName: string | null
+  taskName: string | null
+  description: string | null
+  tags: Array<{ id: string; name: string; color: string }>
+  workspaceId: string | null
+  workspaceName: string | null
 }
 
 let mainWindow: BrowserWindow | null = null
+let miniTimerWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
+let miniTimerPosition: { x: number; y: number } | null = null
+let miniTimerAutoShow = true
 let timerState: TimerState = {
   running: false,
   isPaused: false,
   startedAt: null,
   elapsedSeconds: 0,
-  label: ''
+  label: '',
+  projectId: null,
+  taskId: null,
+  projectName: null,
+  taskName: null,
+  description: null,
+  tags: [],
+  workspaceId: null,
+  workspaceName: null
 }
 
 function formatElapsed(state: TimerState): string {
@@ -68,6 +87,27 @@ function sendTimerCommand(command: TimerCommand): void {
   mainWindow.webContents.send('timer:command', command)
 }
 
+function isMiniTimerVisible(): boolean {
+  return Boolean(miniTimerWindow && !miniTimerWindow.isDestroyed() && miniTimerWindow.isVisible())
+}
+
+function toggleMiniTimerWindow(): void {
+  if (isMiniTimerVisible()) {
+    hideMiniTimerWindow()
+    return
+  }
+
+  createMiniTimerWindow()
+}
+
+function setMiniTimerAutoShow(enabled: boolean): void {
+  miniTimerAutoShow = enabled
+
+  if (!enabled) {
+    hideMiniTimerWindow()
+  }
+}
+
 function updateTray(): void {
   if (!tray) return
 
@@ -88,6 +128,18 @@ function updateTray(): void {
 
   if (timerState.running && timerState.label) {
     template.push({ label: timerState.label, enabled: false })
+  }
+
+  if (timerState.running && timerState.projectName) {
+    template.push({ label: `Project: ${timerState.projectName}`, enabled: false })
+  }
+
+  if (timerState.running && timerState.taskName) {
+    template.push({ label: `Task: ${timerState.taskName}`, enabled: false })
+  }
+
+  if (timerState.running && timerState.workspaceName) {
+    template.push({ label: `Workspace: ${timerState.workspaceName}`, enabled: false })
   }
 
   template.push({ type: 'separator' })
@@ -114,10 +166,25 @@ function updateTray(): void {
     { type: 'separator' },
     { label: 'Show Clovars', click: () => showWindow() },
     {
+      label: isMiniTimerVisible() ? 'Hide Mini Timer' : 'Show Mini Timer',
+      click: () => toggleMiniTimerWindow()
+    },
+    {
       label: 'Quit Clovars',
       click: () => {
-        isQuitting = true
-        app.quit()
+        if (timerState.running) {
+          // If timer is running, show the main window and send confirmation request
+          showWindow()
+          // Send after a small delay to ensure window is shown
+          setTimeout(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('timer:confirm-quit')
+            }
+          }, 100)
+        } else {
+          isQuitting = true
+          app.quit()
+        }
       }
     }
   )
@@ -163,9 +230,42 @@ function createWindow(): void {
   // Closing the window keeps Clovars running in the tray so timers continue.
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
-      event.preventDefault()
-      mainWindow?.hide()
+      // If timer is running, hide to tray and show toast, and show mini timer
+      // If timer is idle, quit normally
+      if (timerState.running) {
+        event.preventDefault()
+        mainWindow?.hide()
+        if (miniTimerAutoShow) {
+          createMiniTimerWindow()
+        }
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('toast:show', {
+            message: 'Timer continues in the tray. Click the tray icon to control it.',
+            type: 'info'
+          })
+        }
+      } else {
+        isQuitting = true
+        app.quit()
+      }
     }
+  })
+
+  // Broadcast main window state changes
+  mainWindow.on('minimize', () => {
+    broadcastMainWindowState()
+  })
+
+  mainWindow.on('restore', () => {
+    broadcastMainWindowState()
+  })
+
+  mainWindow.on('focus', () => {
+    broadcastMainWindowState()
+  })
+
+  mainWindow.on('blur', () => {
+    broadcastMainWindowState()
   })
 
   mainWindow.on('closed', () => {
@@ -186,6 +286,111 @@ function createWindow(): void {
   }
 }
 
+function createMiniTimerWindow(): void {
+  if (miniTimerWindow && !miniTimerWindow.isDestroyed()) {
+    miniTimerWindow.show()
+    miniTimerWindow.focus()
+    updateTray()
+    return
+  }
+
+  const { width } = screen.getPrimaryDisplay().workAreaSize
+  const defaultX = width - 220
+  const defaultY = 100
+
+  const x = miniTimerPosition?.x ?? defaultX
+  const y = miniTimerPosition?.y ?? defaultY
+
+  miniTimerWindow = new BrowserWindow({
+    width: 200,
+    height: 200,
+    x,
+    y,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    hasShadow: true,
+    backgroundColor: '#00000000',
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+
+  miniTimerWindow.setAlwaysOnTop(true, 'floating')
+
+  miniTimerWindow.on('ready-to-show', () => {
+    miniTimerWindow?.show()
+    updateTray()
+  })
+
+  miniTimerWindow.on('closed', () => {
+    miniTimerWindow = null
+    updateTray()
+  })
+
+  miniTimerWindow.on('moved', () => {
+    if (miniTimerWindow) {
+      const [x, y] = miniTimerWindow.getPosition()
+      miniTimerPosition = { x, y }
+    }
+  })
+
+  miniTimerWindow.webContents.setWindowOpenHandler((details) => {
+    shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+
+  miniTimerWindow.webContents.on('did-finish-load', () => {
+    if (!miniTimerWindow || miniTimerWindow.isDestroyed()) return
+
+    miniTimerWindow.webContents.send('mini-timer:state', timerState)
+    broadcastMainWindowState()
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    miniTimerWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/mini`)
+  } else {
+    miniTimerWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '#/mini' })
+  }
+}
+
+function hideMiniTimerWindow(): void {
+  if (miniTimerWindow && !miniTimerWindow.isDestroyed()) {
+    miniTimerWindow.hide()
+    updateTray()
+  }
+}
+
+function broadcastTimerState(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('mini-timer:state', timerState)
+  }
+  if (miniTimerWindow && !miniTimerWindow.isDestroyed()) {
+    miniTimerWindow.webContents.send('mini-timer:state', timerState)
+  }
+}
+
+function broadcastMainWindowState(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+
+  const state = {
+    minimized: mainWindow.isMinimized(),
+    visible: mainWindow.isVisible(),
+    focused: mainWindow.isFocused()
+  }
+
+  if (miniTimerWindow && !miniTimerWindow.isDestroyed()) {
+    miniTimerWindow.webContents.send('main-window:state', state)
+  }
+}
+
 function isValidTimerState(value: unknown): value is TimerState {
   if (!value || typeof value !== 'object') return false
 
@@ -197,7 +402,23 @@ function isValidTimerState(value: unknown): value is TimerState {
     (state.startedAt === null || typeof state.startedAt === 'string') &&
     typeof state.elapsedSeconds === 'number' &&
     Number.isFinite(state.elapsedSeconds) &&
-    typeof state.label === 'string'
+    typeof state.label === 'string' &&
+    (state.projectId === null || typeof state.projectId === 'string') &&
+    (state.taskId === null || typeof state.taskId === 'string') &&
+    (state.projectName === null || typeof state.projectName === 'string') &&
+    (state.taskName === null || typeof state.taskName === 'string') &&
+    (state.description === null || typeof state.description === 'string') &&
+    Array.isArray(state.tags) &&
+    state.tags.every(
+      (tag: unknown) =>
+        tag &&
+        typeof tag === 'object' &&
+        typeof (tag as Record<string, unknown>).id === 'string' &&
+        typeof (tag as Record<string, unknown>).name === 'string' &&
+        typeof (tag as Record<string, unknown>).color === 'string'
+    ) &&
+    (state.workspaceId === null || typeof state.workspaceId === 'string') &&
+    (state.workspaceName === null || typeof state.workspaceName === 'string')
   )
 }
 
@@ -219,9 +440,65 @@ app.whenReady().then(() => {
 
     timerState = state
     updateTray()
+    broadcastTimerState()
   })
 
   ipcMain.on('window:show', () => showWindow())
+
+  ipcMain.on('toast:show', (_event, { message, type }: { message: string; type: string }) => {
+    // Forward toast notification to renderer
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('toast:show', { message, type })
+    }
+  })
+
+  // Listen for quit confirmation from renderer
+  ipcMain.on('app:force-quit', () => {
+    isQuitting = true
+    app.quit()
+  })
+
+  // Listen for quit confirmation when triggered from tray with running timer
+  ipcMain.on('timer:confirm-quit', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('timer:confirm-quit')
+    }
+  })
+
+  // Mini timer window IPC handlers
+  ipcMain.on('mini-timer:command', (_event, command: TimerCommand) => {
+    sendTimerCommand(command)
+  })
+
+  ipcMain.on('mini-timer:hide', () => {
+    hideMiniTimerWindow()
+  })
+
+  ipcMain.on('mini-timer:show', () => {
+    createMiniTimerWindow()
+  })
+
+  ipcMain.on('mini-timer:toggle', () => {
+    toggleMiniTimerWindow()
+  })
+
+  ipcMain.on('mini-timer:set-auto-show', (_event, enabled: unknown) => {
+    if (typeof enabled === 'boolean') {
+      setMiniTimerAutoShow(enabled)
+    }
+  })
+
+  ipcMain.handle('mini-timer:get-state', () => {
+    return timerState
+  })
+
+  const shortcutRegistered = globalShortcut.register('CommandOrControl+Alt+T', () => {
+    toggleMiniTimerWindow()
+  })
+
+  if (!shortcutRegistered) {
+    console.error('Registration of Ctrl+Alt+T global shortcut failed')
+  }
 
   createWindow()
   createTray()
@@ -237,6 +514,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   isQuitting = true
+  globalShortcut.unregisterAll()
 })
 
 // Keep the app alive in the tray when the window is closed so a running

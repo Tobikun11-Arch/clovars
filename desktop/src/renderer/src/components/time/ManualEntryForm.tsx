@@ -21,6 +21,7 @@ interface ManualEntryFormProps {
   onSubmit: (input: ManualTimeEntryInput) => void | Promise<void>
   onCancelEdit: () => void
   onCreateTask: (projectId: string, name: string) => Promise<Task | null>
+  showCancel?: boolean
 }
 
 export function ManualEntryForm({
@@ -31,7 +32,8 @@ export function ManualEntryForm({
   loading,
   onSubmit,
   onCancelEdit,
-  onCreateTask
+  onCreateTask,
+  showCancel = true
 }: ManualEntryFormProps): React.JSX.Element {
   const [projectId, setProjectId] = useState(entry?.projectId ?? '')
   const [taskId, setTaskId] = useState(entry?.taskId ?? '')
@@ -82,6 +84,16 @@ export function ManualEntryForm({
       startTime: startDate.toISOString(),
       endTime: endDate.toISOString()
     })
+
+    // Reset form if creating new entry (not editing)
+    if (!entry) {
+      setProjectId('')
+      setTaskId('')
+      setDescription('')
+      setTagIds([])
+      setStart(toDateTimeLocalValue(minutesAgo(30)))
+      setEnd(toDateTimeLocalValue(new Date()))
+    }
   }
 
   return (
@@ -155,9 +167,11 @@ export function ManualEntryForm({
         <Button variant="primary" type="submit" loading={loading}>
           {entry ? 'Save changes' : 'Add entry'}
         </Button>
-        <Button variant="ghost" disabled={loading} onClick={onCancelEdit}>
-          {entry ? 'Cancel edit' : 'Cancel'}
-        </Button>
+        {showCancel && (
+          <Button variant="ghost" disabled={loading} onClick={onCancelEdit}>
+            {entry ? 'Cancel edit' : 'Cancel'}
+          </Button>
+        )}
       </Stack>
     </form>
   )

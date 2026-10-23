@@ -16,6 +16,7 @@ import {
 import { WorkspacesSection } from './components/workspaces/WorkspacesSection'
 import { WorkSection } from './components/work/WorkSection'
 import { TimeSection } from './components/time/TimeSection'
+import { MiniTimer } from './components/time/MiniTimer'
 import { ReportsSection } from './components/reports/ReportsSection'
 import { ProfileSection } from './components/profile/ProfileSection'
 import { DashboardSection } from './components/dashboard/DashboardSection'
@@ -50,6 +51,7 @@ function Splash(): React.JSX.Element {
 
 function App(): React.JSX.Element {
   const { path, navigate } = useHashRoute()
+  const isMiniWindow = path === '/mini'
   const [user, setUser] = useState<AuthUser | null>(null)
   const [bootstrapped, setBootstrapped] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -58,7 +60,7 @@ function App(): React.JSX.Element {
   const [resetEmail, setResetEmail] = useState('')
 
   const timer = useRunningTimer({
-    enabled: Boolean(user),
+    enabled: Boolean(user) && !isMiniWindow,
     onError: (message) => {
       if (message) showToast(message, 'error')
     }
@@ -68,6 +70,11 @@ function App(): React.JSX.Element {
   const meta = metaFor(path)
 
   useEffect(() => {
+    if (isMiniWindow) {
+      setBootstrapped(true)
+      return
+    }
+
     let cancelled = false
 
     async function bootstrapSession(): Promise<void> {
@@ -86,11 +93,57 @@ function App(): React.JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isMiniWindow])
+
+  // Listen for toast notifications from main process
+  useEffect(() => {
+    if (isMiniWindow || !window.api) return
+
+    const toastListener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => {
+      const data = args[0] as { message: string; type: 'info' | 'success' | 'error' }
+      showToast(data.message, data.type)
+    }
+
+    window.api?.on('toast:show', toastListener)
+
+    return () => {
+      window.api?.removeListener('toast:show', toastListener)
+    }
+  }, [isMiniWindow])
+
+  // Listen for quit confirmation when timer is running
+  useEffect(() => {
+    if (isMiniWindow || !window.api) return
+
+    const quitListener = (_event: Electron.IpcRendererEvent): void => {
+      void (async () => {
+        const { confirmDialog } = await import('./components/ui')
+        const confirmed = await confirmDialog({
+          title: 'Quit with timer running?',
+          message: 'You have a timer running. Quitting will stop the timer. Are you sure?',
+          confirmLabel: 'Quit',
+          danger: true
+        })
+
+        if (confirmed) {
+          // Stop the timer and quit
+          await timer.stop()
+          // Notify main process to force quit
+          window.api?.send('app:force-quit')
+        }
+      })()
+    }
+
+    window.api?.on('timer:confirm-quit', quitListener)
+
+    return () => {
+      window.api?.removeListener('timer:confirm-quit', quitListener)
+    }
+  }, [isMiniWindow, timer])
 
   // Keep the URL and the session in sync.
   useEffect(() => {
-    if (!bootstrapped) return
+    if (!bootstrapped || isMiniWindow) return
 
     if (!isAuthed) {
       if (path === '/' || meta.public) return
@@ -101,7 +154,7 @@ function App(): React.JSX.Element {
     if (path === '/' || meta.public) {
       navigate('/dashboard')
     }
-  }, [bootstrapped, isAuthed, path, meta.public, navigate])
+  }, [bootstrapped, isAuthed, isMiniWindow, path, meta.public, navigate])
 
   // Clear stale auth errors whenever the user moves between screens.
   useEffect(() => {
@@ -407,6 +460,14 @@ function App(): React.JSX.Element {
           />
         )
     }
+  }
+
+  if (isMiniWindow) {
+    return (
+      <ErrorBoundary>
+        <MiniTimer />
+      </ErrorBoundary>
+    )
   }
 
   if (!bootstrapped) {

@@ -9,13 +9,23 @@ type TimerState = {
   startedAt: string | null
   elapsedSeconds: number
   label: string
+  projectId: string | null
+  taskId: string | null
+  projectName: string | null
+  taskName: string | null
+  description: string | null
+  tags: Array<{ id: string; name: string; color: string }>
+  workspaceId: string | null
+  workspaceName: string | null
 }
 
 // Custom APIs for renderer
 const api = {
   onTimerCommand: (callback: (command: TimerCommand) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, command: TimerCommand): void =>
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void => {
+      const command = args[0] as TimerCommand
       callback(command)
+    }
 
     ipcRenderer.on('timer:command', listener)
 
@@ -28,6 +38,62 @@ const api = {
   },
   showWindow: (): void => {
     ipcRenderer.send('window:show')
+  },
+  // Mini timer window
+  onMiniTimerState: (callback: (state: TimerState) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void => {
+      const state = args[0] as TimerState
+      callback(state)
+    }
+
+    ipcRenderer.on('mini-timer:state', listener)
+
+    return () => {
+      ipcRenderer.removeListener('mini-timer:state', listener)
+    }
+  },
+  miniTimerCommand: (command: TimerCommand): void => {
+    ipcRenderer.send('mini-timer:command', command)
+  },
+  hideMiniTimer: (): void => {
+    ipcRenderer.send('mini-timer:hide')
+  },
+  showMiniTimer: (): void => {
+    ipcRenderer.send('mini-timer:show')
+  },
+  toggleMiniTimer: (): void => {
+    ipcRenderer.send('mini-timer:toggle')
+  },
+  setMiniTimerAutoShow: (enabled: boolean): void => {
+    ipcRenderer.send('mini-timer:set-auto-show', enabled)
+  },
+  getMiniTimerState: (): Promise<TimerState> => {
+    return ipcRenderer.invoke('mini-timer:get-state')
+  },
+  // Window state
+  onMainWindowState: (callback: (state: { minimized: boolean; visible: boolean; focused: boolean }) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void => {
+      const state = args[0] as { minimized: boolean; visible: boolean; focused: boolean }
+      callback(state)
+    }
+
+    ipcRenderer.on('main-window:state', listener)
+
+    return () => {
+      ipcRenderer.removeListener('main-window:state', listener)
+    }
+  },
+  showToast: (message: string, type: 'info' | 'success' | 'error' = 'info'): void => {
+    ipcRenderer.send('toast:show', { message, type })
+  },
+  on: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void): void => {
+    ipcRenderer.on(channel, callback)
+  },
+  removeListener: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void): void => {
+    ipcRenderer.removeListener(channel, callback)
+  },
+  send: (channel: string, ...args: unknown[]): void => {
+    ipcRenderer.send(channel, ...args)
   }
 }
 
