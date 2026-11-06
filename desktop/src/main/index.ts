@@ -1,4 +1,5 @@
-import { app, shell, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, globalShortcut, autoUpdater } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, globalShortcut } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -475,26 +476,38 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.clovars.desktop')
 
-  // Configure auto-updater (GitHub releases will auto-detect from electron-builder config)
-  autoUpdater.checkForUpdates()
+  // Configure auto-updater (GitHub releases auto-detect from electron-builder/app-update.yml)
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
 
-  autoUpdater.on('update-available', () => {
-    console.log('Update available')
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for update...')
   })
 
-  autoUpdater.on('update-not-available', () => {
-    console.log('No update available')
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version)
   })
 
-  autoUpdater.on('update-downloaded', () => {
-    console.log('Update downloaded')
-    // Notify user that update is ready to install
-    // In production, you might want to show a dialog to the user
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('No update available. Current version:', info.version)
   })
 
   autoUpdater.on('error', (error) => {
     console.error('Auto-updater error:', error)
   })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version)
+    // Installed automatically on next app quit (autoInstallOnAppQuit).
+    // You can also prompt the user and call autoUpdater.quitAndInstall().
+  })
+
+  // electron-updater only works in packaged builds.
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify()
+  } else {
+    console.log('Skipping auto-update check in development')
+  }
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
