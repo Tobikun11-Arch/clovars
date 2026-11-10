@@ -469,10 +469,39 @@ function isValidTimerState(value: unknown): value is TimerState {
   )
 }
 
+// Only one Clovars process may run. Launching the app again (desktop icon,
+// Start menu, taskbar) hands off to the running instance, which brings its
+// existing window — and its signed-in session — back to the front.
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  const focusExistingWindow = (): void => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow()
+      return
+    }
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+
+  app.on('second-instance', () => {
+    if (app.isReady()) {
+      focusExistingWindow()
+    } else {
+      app.whenReady().then(focusExistingWindow)
+    }
+  })
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.clovars.desktop')
 
