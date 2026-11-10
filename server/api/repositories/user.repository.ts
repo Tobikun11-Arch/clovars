@@ -6,19 +6,21 @@ export const userRepository = {
 
   findById: (id: string) => UserModel.findById(id).exec(),
 
+  findProfileById: (id: string) =>
+    UserModel.findById(id).select('+avatar').exec(),
+
+  updateProfile: (
+    userId: string,
+    data: {firstName?: string; lastName?: string; username?: string}
+  ) => UserModel.updateOne({_id: userId}, {$set: data}, {runValidators: true}).exec(),
+
+  updateAvatar: (userId: string, avatar: string | null) =>
+    UserModel.updateOne({_id: userId}, {$set: {avatar}}).exec(),
+
   listAll: () => UserModel.find({}).exec(),
 
   create: (data: Partial<UserDocument>) => UserModel.create(data),
 
-  updateProfile: (
-    userId: string,
-    data: Partial<
-      Pick<
-        UserDocument,
-        'firstName' | 'lastName' | 'username' | 'email'
-      >
-    >
-  ) => UserModel.updateOne({_id: userId}, data).exec(),
 
   updatePassword: (userId: string, passwordHash: string) =>
     UserModel.updateOne({_id: userId}, {passwordHash}).exec(),

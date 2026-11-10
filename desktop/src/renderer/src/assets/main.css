@@ -1198,6 +1198,24 @@ body {
   font-size: var(--fs-base);
 }
 
+.avatar--xl {
+  width: 72px;
+  height: 72px;
+  font-size: var(--fs-lg, 20px);
+}
+
+.avatar--photo {
+  overflow: hidden;
+  padding: 0;
+}
+
+.avatar--photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 /* ==========================================================================
    Tables
    ========================================================================== */
@@ -2273,6 +2291,25 @@ kbd {
 .profile-head {
   display: flex;
   align-items: center;
+  gap: var(--sp-3);
+}
+
+.profile-photo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.profile-photo__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--sp-3);
 }
 

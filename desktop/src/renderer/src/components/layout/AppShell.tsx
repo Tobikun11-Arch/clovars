@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AuthUser } from '../../types/auth'
+import { displayName, type AuthUser } from '../../types/auth'
 import type { UseRunningTimerResult } from '../../hooks/useRunningTimer'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import { NAV_GROUPS, metaFor } from '../../routes'
@@ -313,9 +313,9 @@ export function AppShell({
             onClick={() => go('/profile')}
             title={user?.email ?? ''}
           >
-            <Avatar name={user?.email} size="sm" />
+            <Avatar name={user ? displayName(user) : undefined} src={user?.avatarUrl} size="sm" />
             <span className="user-card__text">
-              <span className="user-card__name">{user?.email?.split('@')[0] ?? ''}</span>
+              <span className="user-card__name">{user ? displayName(user) : ''}</span>
               <span className="user-card__email">{user?.email ?? ''}</span>
             </span>
           </button>

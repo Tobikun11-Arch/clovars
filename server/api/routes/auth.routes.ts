@@ -12,6 +12,7 @@ import {
   resendResetCodeDto,
   changePasswordDto
 } from '../dtos/auth.dto';
+import {updateAvatarDto, updateProfileDto} from '../dtos/profile.dto';
 import {
   authLimiter,
   authActionLimiter,
@@ -78,6 +79,26 @@ router.put(
   requireAuth,
   validate(changePasswordDto),
   authController.changePassword
+);
+router.put(
+  '/profile',
+  authActionLimiter,
+  requireAuth,
+  validate(updateProfileDto),
+  authController.updateProfile
+);
+router.put(
+  '/profile/avatar',
+  authActionLimiter,
+  requireAuth,
+  validate(updateAvatarDto),
+  authController.updateAvatar
+);
+router.delete(
+  '/profile/avatar',
+  authActionLimiter,
+  requireAuth,
+  authController.removeAvatar
 );
 router.get('/csrf', authActionLimiter, issueCsrfToken);
 

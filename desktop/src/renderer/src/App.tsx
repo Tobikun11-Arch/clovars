@@ -446,6 +446,7 @@ function App(): React.JSX.Element {
             onSubmit={handleChangePassword}
             loading={submitting}
             onLogout={() => void handleLogout()}
+            onUserUpdated={setUser}
           />
         )
       default:

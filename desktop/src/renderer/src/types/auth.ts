@@ -4,6 +4,22 @@ export interface AuthUser {
   id: string
   email: string
   type: AuthUserType
+  firstName?: string
+  lastName?: string
+  username?: string | null
+  avatarUrl?: string | null
+}
+
+export interface UpdateProfilePayload {
+  firstName: string
+  lastName: string
+  username: string
+}
+
+/** Full name when known, otherwise the email's local part. */
+export function displayName(user: Pick<AuthUser, 'email' | 'firstName' | 'lastName'>): string {
+  const full = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+  return full || user.email?.split('@')[0] || ''
 }
 
 export interface LoginResponse {

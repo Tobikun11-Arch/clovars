@@ -38,7 +38,16 @@ app.use(
   })
 );
 
-app.use(express.json({limit: '10kb'}));
+// Keep request bodies small everywhere except the profile photo upload,
+// which carries a resized image as a base64 data URL.
+export const AVATAR_UPLOAD_PATH = '/api/auth/profile/avatar';
+const smallJson = express.json({limit: '10kb'});
+const avatarJson = express.json({limit: '300kb'});
+app.use((req, res, next) =>
+  req.path === AVATAR_UPLOAD_PATH
+    ? avatarJson(req, res, next)
+    : smallJson(req, res, next)
+);
 app.use(cookieParser());
 app.use(sanitize);
 app.use(requestLogger);

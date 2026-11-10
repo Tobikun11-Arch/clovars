@@ -539,11 +539,21 @@ export function SegmentedControl<T extends string>({
 /* ---------- Display helpers ---------- */
 export function Avatar({
   name = '',
-  size = 'md'
+  size = 'md',
+  src
 }: {
   name?: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
+  src?: string | null
 }): React.JSX.Element {
+  if (src) {
+    return (
+      <span className={cn('avatar', `avatar--${size}`, 'avatar--photo')} aria-hidden="true">
+        <img src={src} alt="" draggable={false} />
+      </span>
+    )
+  }
+
   const initials = name
     .split(/[\s@._-]+/)
     .filter(Boolean)

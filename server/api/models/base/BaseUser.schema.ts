@@ -6,6 +6,7 @@ export interface BaseUserDocument extends mongoose.Document {
   email: string;
   passwordHash: string;
   username?: string;
+  avatar?: string | null;
   isVerified: boolean;
   verificationCode?: string | null;
   verificationExpiry?: Date | null;
@@ -29,6 +30,9 @@ export function createBaseUserSchema<T extends BaseUserDocument>() {
       },
       passwordHash: {type: String, required: true},
       username: {type: String, unique: true, sparse: true},
+      // Profile photo as a small data URL (resized on the client). Excluded from
+      // default queries so routine user lookups don't load the image.
+      avatar: {type: String, default: null, select: false},
       isVerified: {type: Boolean, default: false},
       verificationCode: {type: String, default: null},
       verificationExpiry: {type: Date, default: null},

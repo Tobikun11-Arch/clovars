@@ -1,6 +1,7 @@
 import {Request, Response, NextFunction} from 'express';
 import {CookieOptions} from 'express';
 import {authService} from '../services/auth.service';
+import {profileService} from '../services/profile.service';
 import {ApiError} from '../utils/error';
 import {ErrorCodes} from '../constants/errorCodes';
 import {env} from '../config/env';
@@ -24,12 +25,12 @@ export const authController = {
         throw new ApiError(401, ErrorCodes.UNAUTHORIZED, 'Invalid token');
       }
 
-      res.status(200).json({
-        user: {
-          id: req.auth.userId,
-          type: req.auth.type
-        }
-      });
+      const user = await profileService.getProfile(
+        req.auth.userId,
+        req.auth.type
+      );
+
+      res.status(200).json({user});
     } catch (error) {
       next(error);
     }
@@ -78,13 +79,12 @@ export const authController = {
         maxAge: 7 * 24 * 60 * 60 * 1000
       });
 
-      res.status(200).json({
-        user: {
-          id: user._id.toString(),
-          email: user.email,
-          type: userType
-        }
-      });
+      const profile = await profileService.getProfile(
+        user._id.toString(),
+        userType === 'admin' ? 'admin' : 'user'
+      );
+
+      res.status(200).json({user: profile});
     } catch (error) {
       next(error);
     }
@@ -193,6 +193,60 @@ export const authController = {
       );
 
       res.status(200).json({message: 'Password changed successfully'});
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateProfile(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.auth) {
+        throw new ApiError(401, ErrorCodes.UNAUTHORIZED, 'Not authenticated');
+      }
+
+      const user = await profileService.updateProfile(
+        req.auth.userId,
+        req.auth.type ?? 'user',
+        req.body
+      );
+
+      res.status(200).json({user});
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateAvatar(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.auth) {
+        throw new ApiError(401, ErrorCodes.UNAUTHORIZED, 'Not authenticated');
+      }
+
+      const user = await profileService.updateAvatar(
+        req.auth.userId,
+        req.auth.type ?? 'user',
+        req.body.avatar
+      );
+
+      res.status(200).json({user});
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async removeAvatar(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.auth) {
+        throw new ApiError(401, ErrorCodes.UNAUTHORIZED, 'Not authenticated');
+      }
+
+      const user = await profileService.updateAvatar(
+        req.auth.userId,
+        req.auth.type ?? 'user',
+        null
+      );
+
+      res.status(200).json({user});
     } catch (error) {
       next(error);
     }

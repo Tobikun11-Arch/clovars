@@ -38,6 +38,12 @@ export const membershipRepository = {
   ): Promise<unknown> =>
     MembershipModel.updateOne({_id: membershipId}, {$set: {role}}).exec(),
 
+  updateNameByUser: (
+    userId: string,
+    data: {firstName?: string; lastName?: string}
+  ): Promise<unknown> =>
+    MembershipModel.updateMany({userId}, {$set: data}).exec(),
+
   delete: (membershipId: string): Promise<unknown> =>
     MembershipModel.deleteOne({_id: membershipId}).exec(),
 
