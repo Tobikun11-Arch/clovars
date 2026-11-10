@@ -26,7 +26,11 @@ import {
 import { Icon, icons } from '../icons'
 import { MembersPanel } from './MembersPanel'
 import { InvitesPanel } from './InvitesPanel'
-import { CreateWorkspaceDialog, JoinWorkspaceDialog } from './WorkspaceDialogs'
+import {
+  CreateWorkspaceDialog,
+  JoinWorkspaceDialog,
+  RenameWorkspaceDialog
+} from './WorkspaceDialogs'
 import { WorkspaceOnboarding } from './WorkspaceOnboarding'
 
 interface WorkspacesSectionProps {
@@ -45,9 +49,11 @@ export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): Re
   const [createOpen, setCreateOpen] = useState(false)
   const [joinOpen, setJoinOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [renameOpen, setRenameOpen] = useState(false)
 
   const currentRole = activeWorkspace?.role ?? 'member'
   const canManageInvites = currentRole === 'owner' || currentRole === 'admin'
+  const canRename = currentRole === 'owner'
 
   useEffect(() => {
     let cancelled = false
@@ -292,6 +298,11 @@ export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): Re
             >
               {currentRole}
             </Badge>
+            {canRename && (
+              <Button variant="secondary" onClick={() => setRenameOpen(true)}>
+                Rename
+              </Button>
+            )}
             {canManageInvites && (
               <Button
                 variant="primary"
@@ -305,6 +316,10 @@ export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): Re
         }
       >
         <div className="detail-list">
+          <div className="detail-row">
+            <span className="detail-row__label">Name</span>
+            <span className="detail-row__value">{activeWorkspace.name}</span>
+          </div>
           <div className="detail-row">
             <span className="detail-row__label">Workspace ID</span>
             <span className="detail-row__value">
@@ -379,6 +394,14 @@ export function WorkspacesSection({ currentUserId }: WorkspacesSectionProps): Re
 
       <CreateWorkspaceDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       <JoinWorkspaceDialog open={joinOpen} onClose={() => setJoinOpen(false)} />
+      {canRename && (
+        <RenameWorkspaceDialog
+          open={renameOpen}
+          onClose={() => setRenameOpen(false)}
+          workspaceId={activeWorkspace.id}
+          currentName={activeWorkspace.name}
+        />
+      )}
     </>
   )
 }

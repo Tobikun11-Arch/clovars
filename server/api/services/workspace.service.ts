@@ -129,7 +129,13 @@ export const workspaceService = {
 
     await workspaceRepository.updateName(workspaceId, trimmedName);
 
-    return {id: workspaceId, name: trimmedName};
+    return {
+      id: workspaceId,
+      name: trimmedName,
+      ownerId: workspace.ownerId,
+      role: 'owner' as WorkspaceRole,
+      createdAt: workspace.createdAt
+    };
   },
 
   async deleteWorkspace(workspaceId: string): Promise<void> {

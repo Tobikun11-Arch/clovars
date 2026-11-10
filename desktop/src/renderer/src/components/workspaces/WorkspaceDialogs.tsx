@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { acceptInvite, createWorkspace } from '../../api/workspaces'
+import { acceptInvite, createWorkspace, updateWorkspace } from '../../api/workspaces'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import { Button, Field, Input, Modal, showToast } from '../ui'
 
@@ -66,6 +66,89 @@ export function CreateWorkspaceDialog({ open, onClose }: DialogProps): React.JSX
             autoFocus
             placeholder="Acme Studio"
             maxLength={120}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </Field>
+      </form>
+    </Modal>
+  )
+}
+
+interface RenameDialogProps extends DialogProps {
+  workspaceId: string
+  currentName: string
+}
+
+export function RenameWorkspaceDialog({
+  open,
+  onClose,
+  workspaceId,
+  currentName
+}: RenameDialogProps): React.JSX.Element {
+  const { refresh } = useWorkspace()
+  const [name, setName] = useState(currentName)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [wasOpen, setWasOpen] = useState(open)
+
+  // Reset the field to the current name each time the dialog opens.
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setName(currentName)
+      setError(null)
+    }
+  }
+
+  async function handleSubmit(event: React.FormEvent): Promise<void> {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) {
+      setError('Workspace name is required.')
+      return
+    }
+    if (trimmed === currentName) {
+      onClose()
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      const workspace = await updateWorkspace(workspaceId, trimmed)
+      await refresh(workspace.id)
+      showToast(`Workspace renamed to "${workspace.name}".`, 'success')
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not rename workspace')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      title="Rename workspace"
+      description="Everyone in this workspace will see the new name."
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit" form="rename-workspace-form" loading={loading}>
+            Save name
+          </Button>
+        </>
+      }
+    >
+      <form id="rename-workspace-form" onSubmit={(event) => void handleSubmit(event)}>
+        <Field label="Workspace name" error={error} required>
+          <Input
+            value={name}
+            autoFocus
+            maxLength={80}
             onChange={(event) => setName(event.target.value)}
           />
         </Field>

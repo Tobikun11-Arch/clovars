@@ -41,7 +41,7 @@ router.put(
   '/:workspaceId',
   authActionLimiter,
   loadWorkspace,
-  requireWorkspaceRole('admin'),
+  requireWorkspaceRole('owner'),
   validate(updateWorkspaceDto),
   workspaceController.update
 );
