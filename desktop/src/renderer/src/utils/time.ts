@@ -142,3 +142,49 @@ export function formatDayLabel(iso: string): string {
     year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric'
   })
 }
+
+/** 0 = Sunday, 1 = Monday, from the "Week starts on" preference. */
+export function getWeekStartsOn(): number {
+  try {
+    return localStorage.getItem('clovars.weekStart') === 'sunday' ? 0 : 1
+  } catch {
+    return 1
+  }
+}
+
+/** Local midnight at the start of the week containing `date`. */
+export function startOfWeek(date: Date, weekStartsOn: number = getWeekStartsOn()): Date {
+  const result = new Date(date)
+  result.setHours(0, 0, 0, 0)
+  result.setDate(result.getDate() - ((result.getDay() - weekStartsOn + 7) % 7))
+  return result
+}
+
+export function addDays(date: Date, days: number): Date {
+  const result = new Date(date)
+  result.setDate(result.getDate() + days)
+  return result
+}
+
+/** "This week", "Last week", or "Week of 2 Nov" for the week starting at `weekStart`. */
+export function formatWeekLabel(weekStart: Date, now: Date = new Date()): string {
+  const thisWeek = startOfWeek(now).getTime()
+  const start = startOfWeek(weekStart).getTime()
+
+  if (start === thisWeek) return 'This week'
+  if (start === addDays(new Date(thisWeek), -7).getTime()) return 'Last week'
+
+  return `Week of ${weekStart.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+}
+
+/** "16 – 22 Nov" style range for the week starting at `weekStart`. */
+export function formatWeekRange(weekStart: Date): string {
+  const end = addDays(weekStart, 6)
+  const sameMonth = end.getMonth() === weekStart.getMonth()
+  const startText = weekStart.toLocaleDateString(
+    undefined,
+    sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' }
+  )
+  const endText = end.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  return `${startText} – ${endText}`
+}

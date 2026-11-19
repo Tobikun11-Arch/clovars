@@ -15,6 +15,8 @@ export interface TimeEntry {
   isPaused: boolean
   pausedAt?: string | null
   lastResumedAt?: string | null
+  /** True when Clovars stopped this timer itself at the 24-hour limit. */
+  autoStopped?: boolean
   projectName: string | null
   taskName: string | null
   tags: Tag[]

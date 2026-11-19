@@ -20,6 +20,7 @@ export type TimeEntryUpdate = {
   isPaused?: boolean;
   pausedAt?: Date | null;
   lastResumedAt?: Date | null;
+  autoStopped?: boolean;
 };
 
 export const timeEntryRepository = {
@@ -82,6 +83,23 @@ export const timeEntryRepository = {
       .sort({startTime: -1})
       .limit(filters.limit ?? 100)
       .exec();
+  },
+
+  findRunningInWorkspace: (
+    workspaceId: string
+  ): Promise<TimeEntryDocument[]> =>
+    TimeEntryModel.find({workspaceId, isRunning: true}).exec(),
+
+  /**
+   * Stops an entry only if it is still running, so two requests racing to
+   * stop the same timer cannot both write. Resolves true if this call won.
+   */
+  stopIfRunning: async (id: string, data: TimeEntryUpdate): Promise<boolean> => {
+    const result = await TimeEntryModel.updateOne(
+      {_id: id, isRunning: true},
+      {$set: data}
+    ).exec();
+    return result.modifiedCount > 0;
   },
 
   update: (id: string, data: TimeEntryUpdate): Promise<unknown> =>

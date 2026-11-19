@@ -91,9 +91,11 @@ export const timeEntryController = {
   async globalRunning(req: Request, res: Response, next: NextFunction) {
     try {
       const actor = await getActor(req);
-      const entry = await timeEntryService.getGlobalRunning(actor.userId);
+      const {entry, autoStopped} = await timeEntryService.getGlobalRunning(
+        actor.userId
+      );
 
-      res.status(200).json({entry});
+      res.status(200).json({entry, autoStopped});
     } catch (error) {
       next(error);
     }

@@ -35,9 +35,17 @@ export async function fetchRunningTimeEntry(workspaceId: string): Promise<TimeEn
   return response.entry
 }
 
-export async function fetchGlobalRunningTimeEntry(): Promise<TimeEntry | null> {
-  const response = await apiRequest<{ entry: TimeEntry | null }>('/api/time/running')
-  return response.entry
+export interface GlobalRunningResult {
+  entry: TimeEntry | null
+  /** Set when the server just stopped and saved a timer at the 24-hour limit. */
+  autoStopped: TimeEntry | null
+}
+
+export async function fetchGlobalRunningTimeEntry(): Promise<GlobalRunningResult> {
+  const response = await apiRequest<{ entry: TimeEntry | null; autoStopped?: TimeEntry | null }>(
+    '/api/time/running'
+  )
+  return { entry: response.entry, autoStopped: response.autoStopped ?? null }
 }
 
 export async function createManualTimeEntry(

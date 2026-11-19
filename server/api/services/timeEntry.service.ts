@@ -62,6 +62,7 @@ function toTimeEntryDto(entry: TimeEntryDocument, lookup: Lookup) {
     isPaused: Boolean(entry.isPaused),
     pausedAt: entry.pausedAt ?? null,
     lastResumedAt: entry.lastResumedAt ?? null,
+    autoStopped: Boolean(entry.autoStopped),
     projectName: entry.projectId
       ? (lookup.projects.get(entry.projectId) ?? null)
       : null,
@@ -91,6 +92,97 @@ export function computeElapsedSeconds(
 
   return Math.floor(accumulated + segmentSeconds);
 }
+
+/**
+ * When a timer hits the 24-hour limit. Only tracked (unpaused) time counts.
+ * Returns null when the entry is not running or has not reached the limit
+ * yet. An entry already over the limit (e.g. paused after 30 hours, before
+ * this guard existed) expires where its last segment ended.
+ */
+export function autoStopTime(entry: TimeEntryDocument): Date | null {
+  if (!entry.isRunning) return null;
+
+  const accumulated = Math.max(0, entry.durationSeconds ?? 0);
+
+  if (accumulated >= MAX_ENTRY_SECONDS) {
+    return entry.isPaused
+      ? (entry.pausedAt ?? currentSegmentStart(entry))
+      : currentSegmentStart(entry);
+  }
+
+  if (entry.isPaused) return null;
+
+  const remainingMs = (MAX_ENTRY_SECONDS - accumulated) * 1000;
+  return new Date(currentSegmentStart(entry).getTime() + remainingMs);
+}
+
+/**
+ * The 24-hour guard. Stops and saves a running timer that has reached the
+ * limit, ending it exactly at the 24-hour mark (not "now"), so a timer left
+ * running on a device that was shut down still records at most 24 hours.
+ *
+ * The server runs on serverless functions with no background jobs, so this
+ * runs whenever a timer is read or changed. The desktop app polls the running
+ * timer, so it fires within seconds once the app is open again.
+ *
+ * Resolves true if this call stopped the timer.
+ */
+export async function autoStopIfExpired(
+  entry: TimeEntryDocument,
+  now: Date = new Date()
+): Promise<boolean> {
+  const endTime = autoStopTime(entry);
+
+  if (!endTime || endTime.getTime() > now.getTime()) return false;
+
+  const safeEnd =
+    endTime.getTime() > entry.startTime.getTime()
+      ? endTime
+      : new Date(entry.startTime.getTime() + 1000);
+
+  return timeEntryRepository.stopIfRunning(entry.id, {
+    endTime: safeEnd,
+    durationSeconds: Math.max(
+      1,
+      Math.min(MAX_ENTRY_SECONDS, computeElapsedSeconds(entry, safeEnd))
+    ),
+    isRunning: false,
+    isPaused: false,
+    pausedAt: null,
+    lastResumedAt: null,
+    autoStopped: true
+  });
+}
+
+/** Applies the 24-hour guard to the user's running timer, if any. */
+async function enforceLimitForUser(userId: string): Promise<{
+  running: TimeEntryDocument | null;
+  autoStopped: TimeEntryDocument | null;
+}> {
+  const running = await timeEntryRepository.findRunningByUser(userId);
+
+  if (!running) return {running: null, autoStopped: null};
+
+  if (await autoStopIfExpired(running)) {
+    const stopped = await timeEntryRepository.findByIdInWorkspace(
+      running.id,
+      running.workspaceId
+    );
+    return {running: null, autoStopped: stopped};
+  }
+
+  return {running, autoStopped: null};
+}
+
+/** Applies the 24-hour guard to every running timer in a workspace (for reports). */
+export async function enforceLimitInWorkspace(workspaceId: string): Promise<void> {
+  const running = await timeEntryRepository.findRunningInWorkspace(workspaceId);
+  const now = new Date();
+  await Promise.all(running.map((entry) => autoStopIfExpired(entry, now)));
+}
+
+const AUTO_STOPPED_MESSAGE =
+  'Your timer reached 24 hours, so Clovars stopped and saved it automatically.';
 
 async function buildRunningEntryResponse(entryId: string, workspaceId: string) {
   const updated = await timeEntryRepository.findByIdInWorkspace(
@@ -129,6 +221,42 @@ function parseDate(value: string, field: string): Date {
   }
 
   return date;
+}
+
+// Device clocks drift; a start time this far in the future is treated as now.
+const START_CLOCK_SKEW_MS = 60 * 1000;
+
+/**
+ * Start time for a new timer. Users can back-date it ("I forgot to start at
+ * 9 PM"), so the timer already shows the time since then. It can't be in the
+ * future, or 24+ hours ago, since the 24-hour guard would stop it at once.
+ */
+export function resolveTimerStart(
+  value: string | undefined,
+  now: Date = new Date()
+): Date {
+  if (!value) return now;
+
+  const startTime = parseDate(value, 'Start time');
+  const diffMs = now.getTime() - startTime.getTime();
+
+  if (diffMs < -START_CLOCK_SKEW_MS) {
+    throw new ApiError(
+      400,
+      ErrorCodes.INVALID_TIME_RANGE,
+      'Start time cannot be in the future'
+    );
+  }
+
+  if (diffMs >= MAX_ENTRY_SECONDS * 1000) {
+    throw new ApiError(
+      400,
+      ErrorCodes.INVALID_TIME_RANGE,
+      'A timer cannot start 24 or more hours ago. Add it as a manual entry instead.'
+    );
+  }
+
+  return diffMs < 0 ? now : startTime;
 }
 
 function computeDuration(startTime: Date, endTime: Date): number {
@@ -226,6 +354,7 @@ export const timeEntryService = {
     userId: string,
     filters: TimeEntryListFilters
   ) {
+    await enforceLimitForUser(userId);
     const entries = await timeEntryRepository.list(
       workspaceId,
       userId,
@@ -237,6 +366,7 @@ export const timeEntryService = {
   },
 
   async getRunning(workspaceId: string, userId: string) {
+    await enforceLimitForUser(userId);
     const entry = await timeEntryRepository.findRunningByUserAndWorkspace(
       userId,
       workspaceId
@@ -249,6 +379,7 @@ export const timeEntryService = {
   },
 
   async getEntry(workspaceId: string, userId: string, entryId: string) {
+    await enforceLimitForUser(userId);
     const entry = await timeEntryRepository.findByIdForUser(
       entryId,
       workspaceId,
@@ -267,20 +398,29 @@ export const timeEntryService = {
     return toTimeEntryDto(entry, lookup);
   },
 
+  /**
+   * The user's running timer, plus the entry the 24-hour guard stopped during
+   * this call (if any) so the app can tell the user it was saved.
+   */
   async getGlobalRunning(userId: string) {
-    const entry = await timeEntryRepository.findRunningByUser(userId);
+    const {running, autoStopped} = await enforceLimitForUser(userId);
+    const entry = running ?? autoStopped;
 
-    if (!entry) return null;
+    if (!entry) return {entry: null, autoStopped: null};
 
     const [lookup, workspace] = await Promise.all([
       buildLookup(entry.workspaceId),
       workspaceRepository.findById(entry.workspaceId)
     ]);
 
-    return {
+    const dto = {
       ...toTimeEntryDto(entry, lookup),
       workspaceName: workspace ? workspace.name : null
     };
+
+    return running
+      ? {entry: dto, autoStopped: null}
+      : {entry: null, autoStopped: dto};
   },
 
   async createManualEntry(
@@ -315,7 +455,8 @@ export const timeEntryService = {
     userId: string,
     data: LinkInput & {startTime?: string}
   ) {
-    const existing = await timeEntryRepository.findRunningByUser(userId);
+    // A forgotten timer past 24 hours is saved first, so it doesn't block this one.
+    const {running: existing} = await enforceLimitForUser(userId);
 
     if (existing) {
       throw new ApiError(
@@ -327,9 +468,7 @@ export const timeEntryService = {
     }
 
     const links = await resolveLinks(workspaceId, data);
-    const startTime = data.startTime
-      ? parseDate(data.startTime, 'Start time')
-      : new Date();
+    const startTime = resolveTimerStart(data.startTime);
 
     let entry: TimeEntryDocument;
 
@@ -383,6 +522,11 @@ export const timeEntryService = {
       );
     }
 
+    // Stopped after the 24-hour mark: save it as ending at the limit.
+    if (await autoStopIfExpired(running)) {
+      return buildRunningEntryResponse(running.id, running.workspaceId);
+    }
+
     const endTime = data.endTime
       ? parseDate(data.endTime, 'End time')
       : new Date();
@@ -393,7 +537,7 @@ export const timeEntryService = {
 
     const durationSeconds = Math.max(
       1,
-      computeElapsedSeconds(running, endTime)
+      Math.min(MAX_ENTRY_SECONDS, computeElapsedSeconds(running, endTime))
     );
 
     await timeEntryRepository.update(running.id, {
@@ -417,6 +561,10 @@ export const timeEntryService = {
         ErrorCodes.TIMER_NOT_RUNNING,
         'No running timer found'
       );
+    }
+
+    if (await autoStopIfExpired(running)) {
+      throw new ApiError(409, ErrorCodes.TIMER_AUTO_STOPPED, AUTO_STOPPED_MESSAGE);
     }
 
     if (running.isPaused) {
@@ -452,6 +600,10 @@ export const timeEntryService = {
       );
     }
 
+    if (await autoStopIfExpired(running)) {
+      throw new ApiError(409, ErrorCodes.TIMER_AUTO_STOPPED, AUTO_STOPPED_MESSAGE);
+    }
+
     if (!running.isPaused) {
       throw new ApiError(
         409,
@@ -479,6 +631,7 @@ export const timeEntryService = {
     entryId: string,
     data: LinkInput & {startTime?: string; endTime?: string}
   ) {
+    await enforceLimitForUser(userId);
     const entry = await timeEntryRepository.findByIdForUser(
       entryId,
       workspaceId,
@@ -562,6 +715,7 @@ export const timeEntryService = {
     userId: string,
     entryId: string
   ): Promise<void> {
+    await enforceLimitForUser(userId);
     const entry = await timeEntryRepository.findByIdForUser(
       entryId,
       workspaceId,

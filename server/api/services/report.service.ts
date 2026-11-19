@@ -1,10 +1,21 @@
 import {timeEntryRepository} from '../repositories/timeEntry.repository';
 import {membershipRepository} from '../repositories/membership.repository';
 import {workspaceRepository} from '../repositories/workspace.repository';
-import {buildLookup, computeElapsedSeconds} from './timeEntry.service';
+import {
+  buildLookup,
+  computeElapsedSeconds,
+  enforceLimitInWorkspace
+} from './timeEntry.service';
 import {ApiError} from '../utils/error';
 import {ErrorCodes} from '../constants/errorCodes';
 import type {ReportQuery} from '../dtos/report.dto';
+
+type ReportMemberTotal = {
+  userId: string;
+  name: string;
+  totalSeconds: number;
+  count: number;
+};
 
 type ReportGroup = {
   key: string;
@@ -13,7 +24,21 @@ type ReportGroup = {
   count: number;
   date: string | null;
   endDate: string | null;
+  /**
+   * Who tracked the time in this group, most time first. Only filled for
+   * date and project reports that cover more than one member.
+   */
+  members: ReportMemberTotal[];
 };
+
+type MemberInfo = {email: string; firstName?: string; lastName?: string};
+
+function memberName(userId: string, memberMap: Map<string, MemberInfo>): string {
+  const member = memberMap.get(userId);
+  if (!member) return 'Former member';
+  const name = `${member.firstName ?? ''} ${member.lastName ?? ''}`.trim();
+  return name || member.email;
+}
 
 export type ReportResult = {
   groupBy: ReportQuery['groupBy'];
@@ -112,6 +137,8 @@ export const reportService = {
     // Members can only ever see their own time, regardless of the requested filter.
     const targetUserId = isAdmin ? filters.memberId : userId;
 
+    // Save any timer left running past 24 hours before totalling.
+    await enforceLimitInWorkspace(workspaceId);
     const entries = await timeEntryRepository.listForReport(workspaceId, {
       userId: targetUserId,
       projectId: filters.projectId,
@@ -169,6 +196,8 @@ export const reportService = {
     const reportGenerated = formatLocalDateTime(new Date(), offsetMinutes);
 
     const groups = new Map<string, ReportGroup>();
+    const groupMembers = new Map<string, Map<string, ReportMemberTotal>>();
+    const breakDownByMember = !targetUserId && filters.groupBy !== 'member';
     let totalSeconds = 0;
     let totalCount = 0;
 
@@ -206,9 +235,38 @@ export const reportService = {
           totalSeconds: duration,
           count: 1,
           date: entryDate,
-          endDate: entryDate
+          endDate: entryDate,
+          members: []
         });
       }
+
+      if (breakDownByMember) {
+        let members = groupMembers.get(key);
+        if (!members) {
+          members = new Map();
+          groupMembers.set(key, members);
+        }
+        const member = members.get(entry.userId);
+        if (member) {
+          member.totalSeconds += duration;
+          member.count += 1;
+        } else {
+          members.set(entry.userId, {
+            userId: entry.userId,
+            name: memberName(entry.userId, memberMap),
+            totalSeconds: duration,
+            count: 1
+          });
+        }
+      }
+    }
+
+    for (const [key, members] of groupMembers) {
+      const group = groups.get(key);
+      if (!group) continue;
+      group.members = Array.from(members.values()).sort(
+        (a, b) => b.totalSeconds - a.totalSeconds || a.name.localeCompare(b.name)
+      );
     }
 
     const groupList = Array.from(groups.values());
@@ -297,7 +355,7 @@ export const reportService = {
     return '\uFEFF' + lines.join('\n');
   },
 
-  detailedCsv(
+  async detailedCsv(
     workspaceId: string,
     userId: string,
     role: 'owner' | 'admin' | 'member',
@@ -307,6 +365,7 @@ export const reportService = {
     const targetUserId = isAdmin ? filters.memberId : userId;
     const offsetMinutes = filters.timezoneOffset ?? 0;
 
+    await enforceLimitInWorkspace(workspaceId);
     const entriesPromise = timeEntryRepository.listForReport(workspaceId, {
       userId: targetUserId,
       projectId: filters.projectId,

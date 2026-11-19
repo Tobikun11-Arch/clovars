@@ -14,6 +14,8 @@ export interface TimeEntryDocument extends mongoose.Document {
   isPaused: boolean;
   pausedAt?: Date | null;
   lastResumedAt?: Date | null;
+  // True when Clovars stopped the timer itself at the 24-hour limit.
+  autoStopped: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,7 +34,8 @@ const TimeEntrySchema = new Schema<TimeEntryDocument>(
     isRunning: {type: Boolean, default: false},
     isPaused: {type: Boolean, default: false},
     pausedAt: {type: Date, default: null},
-    lastResumedAt: {type: Date, default: null}
+    lastResumedAt: {type: Date, default: null},
+    autoStopped: {type: Boolean, default: false}
   },
   {timestamps: true}
 );

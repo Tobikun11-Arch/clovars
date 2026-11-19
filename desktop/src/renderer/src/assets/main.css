@@ -2919,3 +2919,92 @@ html.mini-timer-root #root {
   gap: 6px;
   min-width: 0;
 }
+
+/* Timer: "I started earlier" back-dated start */
+.timer-start {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timer-start__earlier {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 26px;
+}
+
+.timer-start__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Time entries: week header rows and "show older" */
+.entry-week-row td {
+  background: color-mix(in srgb, var(--primary, #0ea5e9) 8%, var(--surface));
+  border-top: 2px solid color-mix(in srgb, var(--primary, #0ea5e9) 35%, transparent);
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.entry-week-label {
+  font-weight: var(--fw-bold);
+}
+
+.entry-week-range {
+  margin-left: 8px;
+  color: var(--text-muted);
+}
+
+.entry-week-total {
+  float: right;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-week-total__label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.entries-older {
+  display: flex;
+  justify-content: center;
+  padding: 12px 16px 16px;
+  text-align: center;
+}
+
+/* Reports: who tracked the time in each date / project group */
+.report-group-row td {
+  font-weight: var(--fw-semibold);
+}
+
+.report-member-row td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  border-top: none;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.report-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 16px;
+  min-width: 0;
+}
+
+.report-member__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}

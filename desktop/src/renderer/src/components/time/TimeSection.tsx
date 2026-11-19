@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import {
   createManualTimeEntry,
@@ -14,7 +14,13 @@ import { createTask, fetchProjects, fetchTags, fetchTasks } from '../../api/work
 import type { Project, Tag, Task } from '../../types/work'
 import type { ManualTimeEntryInput, StartTimerInput, TimeEntry, UpdateTimeEntryInput } from '../../types/time'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
-import { formatDuration, formatDurationShort, isToday } from '../../utils/time'
+import {
+  addDays,
+  formatDuration,
+  formatDurationShort,
+  isToday,
+  startOfWeek
+} from '../../utils/time'
 import {
   Badge,
   Button,
@@ -40,6 +46,13 @@ interface TimeSectionProps {
   onRunningChange: (entry: TimeEntry | null) => void
 }
 
+const ENTRIES_LIMIT = 500
+
+/** Start of last week: the list shows this week and last week by default. */
+function defaultListFrom(): Date {
+  return addDays(startOfWeek(new Date()), -7)
+}
+
 export function TimeSection({
   running,
   runningElapsedSeconds,
@@ -58,6 +71,12 @@ export function TimeSection({
   const [pageLoading, setPageLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  // The list shows this week and last week; "Show older entries" moves this
+  // back a week at a time. Older history lives in Reports.
+  const listFromRef = useRef<Date>(defaultListFrom())
+  const listWorkspaceRef = useRef<string | null>(null)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const [reachedEnd, setReachedEnd] = useState(false)
   const [timerMode, setTimerMode] = useState<'timer' | 'manual'>('timer')
 
   const runningId = running?.id ?? null
@@ -73,15 +92,27 @@ export function TimeSection({
       setPageLoading(true)
       setLoadError(null)
 
+      // Switching workspace starts over at the default two weeks.
+      const workspaceChanged = listWorkspaceRef.current !== workspaceId
+      if (workspaceChanged) {
+        listWorkspaceRef.current = workspaceId
+        listFromRef.current = defaultListFrom()
+      }
+
       try {
         const [nextProjects, nextTasks, nextTags, nextEntries] = await Promise.all([
           fetchProjects(workspaceId),
           fetchTasks(workspaceId),
           fetchTags(workspaceId),
-          fetchTimeEntries(workspaceId)
+          fetchTimeEntries(workspaceId, {
+            from: listFromRef.current.toISOString(),
+            limit: ENTRIES_LIMIT
+          })
         ])
 
         if (cancelled) return
+
+        if (workspaceChanged) setReachedEnd(false)
 
         setProjects(nextProjects)
         setTasks(nextTasks)
@@ -252,6 +283,52 @@ export function TimeSection({
     }
   }
 
+  async function handleShowOlder(): Promise<void> {
+    if (!activeId || loadingOlder) return
+
+    const workspaceId = activeId
+    const before = new Date(listFromRef.current.getTime() - 1).toISOString()
+    setLoadingOlder(true)
+
+    try {
+      let olderFrom = addDays(listFromRef.current, -7)
+      let older = await fetchTimeEntries(workspaceId, {
+        from: olderFrom.toISOString(),
+        to: before,
+        limit: ENTRIES_LIMIT
+      })
+
+      if (older.length === 0) {
+        // Skip empty weeks: jump straight to the week of the next older entry.
+        const [latest] = await fetchTimeEntries(workspaceId, { to: before, limit: 1 })
+
+        if (!latest) {
+          setReachedEnd(true)
+          return
+        }
+
+        olderFrom = startOfWeek(new Date(latest.startTime))
+        older = await fetchTimeEntries(workspaceId, {
+          from: olderFrom.toISOString(),
+          to: before,
+          limit: ENTRIES_LIMIT
+        })
+      }
+
+      if (listWorkspaceRef.current !== workspaceId) return
+
+      listFromRef.current = olderFrom
+      setEntries((current) => {
+        const known = new Set(current.map((entry) => entry.id))
+        return [...current, ...older.filter((entry) => !known.has(entry.id))]
+      })
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not load older entries', 'error')
+    } finally {
+      setLoadingOlder(false)
+    }
+  }
+
   function openNewEntry(): void {
     setTimerMode('manual')
     setFormVersion((version) => version + 1)
@@ -279,6 +356,18 @@ export function TimeSection({
       ? runningElapsedSeconds
       : 0)
   const todayCount = entries.filter((entry) => isToday(entry.startTime)).length
+  const thisWeekStart = startOfWeek(new Date()).getTime()
+  const inThisWeek = (iso: string): boolean => new Date(iso).getTime() >= thisWeekStart
+  const thisWeekTotalSeconds =
+    entries
+      .filter((entry) => inThisWeek(entry.startTime))
+      .reduce(
+        (total, entry) => total + (entry.isRunning ? runningElapsedSeconds : entry.durationSeconds),
+        0
+      ) +
+    (running && running.workspaceId === activeId && !runningIsListed && inThisWeek(running.startTime)
+      ? runningElapsedSeconds
+      : 0)
 
   return (
     <>
@@ -408,6 +497,12 @@ export function TimeSection({
           <Divider />
           <div className="detail-list">
             <div className="detail-row">
+              <span className="detail-row__label">This week</span>
+              <span className="detail-row__value tabular">
+                {formatDuration(thisWeekTotalSeconds)}
+              </span>
+            </div>
+            <div className="detail-row">
               <span className="detail-row__label">Workspace</span>
               <span className="detail-row__value">{activeWorkspace?.name ?? '—'}</span>
             </div>
@@ -427,7 +522,7 @@ export function TimeSection({
 
       <Section
         title="Time entries"
-        description="Entries are grouped by day. Running timers update live."
+        description="This week and last week, grouped by day with weekly totals. Running timers update live."
         actions={
           <Button variant="primary" icon={<Icon d={icons.plus} />} onClick={openNewEntry}>
             Add entry
@@ -457,6 +552,9 @@ export function TimeSection({
             onEdit={handleEdit}
             onDelete={(entry) => void handleDelete(entry)}
             onAdd={openNewEntry}
+            onShowOlder={() => void handleShowOlder()}
+            loadingOlder={loadingOlder}
+            reachedEnd={reachedEnd}
           />
         )}
       </Section>

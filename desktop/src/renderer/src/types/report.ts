@@ -1,5 +1,12 @@
 export type ReportGroupBy = 'project' | 'member' | 'date'
 
+export interface ReportMemberTotal {
+  userId: string
+  name: string
+  totalSeconds: number
+  count: number
+}
+
 export interface ReportGroup {
   key: string
   label: string
@@ -7,6 +14,8 @@ export interface ReportGroup {
   count: number
   date: string | null
   endDate: string | null
+  /** Who tracked this group's time, most first. Set for all-member date/project reports. */
+  members?: ReportMemberTotal[]
 }
 
 export interface ReportResult {

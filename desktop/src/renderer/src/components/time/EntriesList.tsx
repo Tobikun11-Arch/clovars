@@ -1,5 +1,13 @@
 import type { TimeEntry } from '../../types/time'
-import { formatDateTime, formatDayLabel, formatDuration, localDayKey } from '../../utils/time'
+import {
+  formatDateTime,
+  formatDayLabel,
+  formatDuration,
+  formatWeekLabel,
+  formatWeekRange,
+  localDayKey,
+  startOfWeek
+} from '../../utils/time'
 import { Badge, Button, EmptyState, IconButton, TableContainer } from '../ui'
 import { Icon, icons } from '../icons'
 
@@ -10,6 +18,11 @@ interface EntriesListProps {
   onEdit: (entry: TimeEntry) => void
   onDelete: (entry: TimeEntry) => void
   onAdd: () => void
+  /** Shown under the table to load the week before the oldest one listed. */
+  onShowOlder?: () => void
+  loadingOlder?: boolean
+  /** True once there's nothing older to load. */
+  reachedEnd?: boolean
 }
 
 interface EntryDayGroup {
@@ -19,13 +32,24 @@ interface EntryDayGroup {
   totalSeconds: number
 }
 
+interface EntryWeekGroup {
+  key: string
+  label: string
+  range: string
+  days: EntryDayGroup[]
+  totalSeconds: number
+}
+
 export function EntriesList({
   entries,
   runningElapsedSeconds,
   loading,
   onEdit,
   onDelete,
-  onAdd
+  onAdd,
+  onShowOlder,
+  loadingOlder = false,
+  reachedEnd = false
 }: EntriesListProps): React.JSX.Element {
   if (entries.length === 0) {
     return (
@@ -42,24 +66,38 @@ export function EntriesList({
     )
   }
 
-  const groups = new Map<string, EntryDayGroup>()
+  // Entries arrive newest first, so weeks and days come out in that order too.
+  const weeks = new Map<string, EntryWeekGroup>()
+  const now = new Date()
 
   for (const entry of entries) {
-    const key = localDayKey(entry.startTime)
-    let group = groups.get(key)
+    const seconds = entry.isRunning ? runningElapsedSeconds : entry.durationSeconds
+    const weekStart = startOfWeek(new Date(entry.startTime))
+    const weekKey = String(weekStart.getTime())
+    let week = weeks.get(weekKey)
 
-    if (!group) {
-      group = {
-        key,
-        label: formatDayLabel(entry.startTime),
-        entries: [],
+    if (!week) {
+      week = {
+        key: weekKey,
+        label: formatWeekLabel(weekStart, now),
+        range: formatWeekRange(weekStart),
+        days: [],
         totalSeconds: 0
       }
-      groups.set(key, group)
+      weeks.set(weekKey, week)
     }
 
-    group.entries.push(entry)
-    group.totalSeconds += entry.isRunning ? runningElapsedSeconds : entry.durationSeconds
+    const dayKey = localDayKey(entry.startTime)
+    let day = week.days.find((candidate) => candidate.key === dayKey)
+
+    if (!day) {
+      day = { key: dayKey, label: formatDayLabel(entry.startTime), entries: [], totalSeconds: 0 }
+      week.days.push(day)
+    }
+
+    day.entries.push(entry)
+    day.totalSeconds += seconds
+    week.totalSeconds += seconds
   }
 
   return (
@@ -77,10 +115,10 @@ export function EntriesList({
               </tr>
             </thead>
             <tbody>
-              {Array.from(groups.values()).map((group) => (
-                <GroupRows
-                  key={group.key}
-                  group={group}
+              {Array.from(weeks.values()).map((week) => (
+                <WeekRows
+                  key={week.key}
+                  week={week}
                   runningElapsedSeconds={runningElapsedSeconds}
                   loading={loading}
                   onEdit={onEdit}
@@ -91,7 +129,47 @@ export function EntriesList({
           </table>
         </TableContainer>
       </div>
+      {onShowOlder && (
+        <div className="entries-older">
+          {reachedEnd ? (
+            <span className="muted">That&apos;s all your entries. Use Reports for totals over any range.</span>
+          ) : (
+            <Button variant="secondary" loading={loadingOlder} onClick={onShowOlder}>
+              Show older entries
+            </Button>
+          )}
+        </div>
+      )}
     </div>
+  )
+}
+
+function WeekRows({
+  week,
+  ...rest
+}: {
+  week: EntryWeekGroup
+  runningElapsedSeconds: number
+  loading: boolean
+  onEdit: (entry: TimeEntry) => void
+  onDelete: (entry: TimeEntry) => void
+}): React.JSX.Element {
+  return (
+    <>
+      <tr className="entry-week-row">
+        <td colSpan={5}>
+          <span className="entry-week-label">{week.label}</span>
+          <span className="entry-week-range">{week.range}</span>
+          <span className="entry-week-total">
+            <span className="entry-week-total__label">Week total</span>
+            {formatDuration(week.totalSeconds)}
+          </span>
+        </td>
+      </tr>
+      {week.days.map((day) => (
+        <GroupRows key={day.key} group={day} {...rest} />
+      ))}
+    </>
   )
 }
 

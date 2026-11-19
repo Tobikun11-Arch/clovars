@@ -7,8 +7,13 @@ import {
   stopTimer
 } from '../api/time'
 import type { TimeEntry } from '../types/time'
+import { showToast } from '../components/ui'
 
 const ACTIVE_WORKSPACE_KEY = 'clovars.activeWorkspaceId'
+// Mirrors MAX_ENTRY_SECONDS on the server, which does the actual stopping.
+const MAX_TIMER_SECONDS = 24 * 60 * 60
+const AUTO_STOPPED_MESSAGE =
+  'Your timer reached 24 hours, so Clovars stopped and saved it automatically.'
 
 interface UseRunningTimerOptions {
   enabled: boolean
@@ -62,8 +67,12 @@ export function useRunningTimer({
     if (!enabled) return
 
     try {
-      const entry = await fetchGlobalRunningTimeEntry()
+      const { entry, autoStopped } = await fetchGlobalRunningTimeEntry()
       applyRunning(entry)
+
+      if (autoStopped) {
+        showToast(AUTO_STOPPED_MESSAGE, 'info')
+      }
     } catch {
       // Polling failures are non-fatal; normal requests surface auth errors.
     }
@@ -225,9 +234,20 @@ export function useRunningTimer({
       )
     : 0
 
+  // While the app is open, ask the server as soon as the 24-hour mark is hit
+  // instead of waiting up to 30 seconds for the next poll. Once per entry.
+  const limitCheckedFor = useRef<string | null>(null)
+  const reachedLimit = Boolean(running && !running.isPaused && elapsedSeconds >= MAX_TIMER_SECONDS)
+
+  useEffect(() => {
+    if (!reachedLimit || !running || limitCheckedFor.current === running.id) return
+    limitCheckedFor.current = running.id
+    void refresh()
+  }, [reachedLimit, running, refresh])
+
   return {
     running,
-    elapsedSeconds,
+    elapsedSeconds: Math.min(elapsedSeconds, MAX_TIMER_SECONDS),
     applyRunning,
     refresh,
     startQuickTimer,

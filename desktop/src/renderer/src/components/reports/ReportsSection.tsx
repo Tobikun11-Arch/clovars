@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import { fetchProjects, fetchTags } from '../../api/work'
 import { fetchMembers } from '../../api/workspaces'
@@ -8,6 +8,7 @@ import type { ReportFilters, ReportGroupBy, ReportResult } from '../../types/rep
 import type { WorkspaceMember } from '../../types/workspace'
 import { formatDuration, formatDurationShort, formatShortDate } from '../../utils/time'
 import {
+  Avatar,
   BarChart,
   Button,
   Card,
@@ -460,19 +461,33 @@ export function ReportsSection(): React.JSX.Element {
                     </thead>
                     <tbody>
                       {report.groups.map((group) => (
-                        <tr key={group.key}>
-                          <td>
-                            <span className="tabular">
-                              {group.date ?? '—'}
-                              {group.endDate && group.date && group.endDate !== group.date
-                                ? ` – ${group.endDate}`
-                                : ''}
-                            </span>
-                          </td>
-                          {showGroupColumn && <td>{group.label}</td>}
-                          <td className="num">{group.count}</td>
-                          <td className="num tabular">{formatDuration(group.totalSeconds)}</td>
-                        </tr>
+                        <Fragment key={group.key}>
+                          <tr className={group.members?.length ? 'report-group-row' : undefined}>
+                            <td>
+                              <span className="tabular">
+                                {group.date ?? '—'}
+                                {group.endDate && group.date && group.endDate !== group.date
+                                  ? ` – ${group.endDate}`
+                                  : ''}
+                              </span>
+                            </td>
+                            {showGroupColumn && <td>{group.label}</td>}
+                            <td className="num">{group.count}</td>
+                            <td className="num tabular">{formatDuration(group.totalSeconds)}</td>
+                          </tr>
+                          {group.members?.map((member) => (
+                            <tr key={`${group.key}:${member.userId}`} className="report-member-row">
+                              <td colSpan={showGroupColumn ? 2 : 1}>
+                                <span className="report-member">
+                                  <Avatar name={member.name} size="sm" />
+                                  <span className="report-member__name">{member.name}</span>
+                                </span>
+                              </td>
+                              <td className="num">{member.count}</td>
+                              <td className="num tabular">{formatDuration(member.totalSeconds)}</td>
+                            </tr>
+                          ))}
+                        </Fragment>
                       ))}
                       <tr className="report-total-row">
                         <td>—</td>
