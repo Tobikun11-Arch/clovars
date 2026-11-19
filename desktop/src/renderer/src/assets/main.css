@@ -2569,6 +2569,12 @@ html.mini-timer-root #root {
   overflow: hidden;
   height: 100%;
   min-height: 0;
+  padding: 0;
+}
+
+/* Only the root keeps a gutter (room for the shadow); padding on html and
+   body as well used to eat 48px of every window dimension. */
+html.mini-timer-root #root {
   padding: 8px;
 }
 
@@ -2580,7 +2586,9 @@ html.mini-timer-root #root {
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 16px 12px 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: 26px 12px 12px;
   background: color-mix(in srgb, var(--surface) 96%, transparent);
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -2614,9 +2622,45 @@ html.mini-timer-root #root {
 }
 
 .mini-timer__close,
+.mini-timer__shrink,
 .mini-timer__actions,
 .mini-timer__actions .btn {
   -webkit-app-region: no-drag;
+}
+
+/* Takes the space left over by the labels and buttons; the ring is sized to it. */
+.mini-timer__ring {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mini-timer__shrink {
+  position: absolute;
+  top: 4px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mini-timer__shrink:hover {
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .mini-timer__close {
@@ -2651,7 +2695,7 @@ html.mini-timer-root #root {
 }
 
 .mini-timer__clock {
-  font-size: var(--fs-md);
+  font-size: clamp(10px, calc(var(--ring-size, 96px) * 0.16), 20px);
   font-weight: var(--fw-bold);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -2676,18 +2720,21 @@ html.mini-timer-root #root {
 }
 
 .mini-timer__project {
-  margin-top: 8px;
+  flex: none;
+  margin-top: 6px;
   font-size: 12px;
   color: var(--text-muted);
 }
 
 .mini-timer__task {
+  flex: none;
   font-size: 11px;
   color: var(--text-subtle);
 }
 
 .mini-timer__actions {
   display: flex;
+  flex: none;
   gap: 4px;
   margin-top: 8px;
 }
@@ -2785,4 +2832,90 @@ html.mini-timer-root #root {
 
 [data-reduce-motion='true'] .mini-timer {
   backdrop-filter: none;
+}
+
+/* Mini timer icon mode: a round image with a status ring */
+.mini-timer-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 3px;
+  border: none;
+  border-radius: 50%;
+  background: var(--mini-icon-ring, var(--text-subtle));
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.28);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: background 0.3s ease, transform 0.15s ease;
+}
+
+.mini-timer-icon:hover {
+  transform: scale(1.04);
+}
+
+.mini-timer-icon:focus-visible {
+  outline: 2px solid var(--primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.mini-timer-icon--running {
+  --mini-icon-ring: #22c55e;
+}
+
+.mini-timer-icon--paused {
+  --mini-icon-ring: #f59e0b;
+}
+
+.mini-timer-icon--idle {
+  --mini-icon-ring: #94a3b8;
+}
+
+.mini-timer-icon__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface);
+  pointer-events: none;
+}
+
+[data-reduce-motion='true'] .mini-timer-icon {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-timer-icon {
+    transition: none;
+  }
+}
+
+/* Preferences: mini timer icon */
+.mini-icon-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mini-icon-setting__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.mini-icon-setting__preview {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  padding: 3px;
+  border-radius: 50%;
+  background: #22c55e;
+  object-fit: cover;
+}
+
+.mini-icon-setting__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }

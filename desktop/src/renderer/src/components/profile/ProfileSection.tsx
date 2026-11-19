@@ -24,6 +24,12 @@ import {
   showToast
 } from '../ui'
 import { Icon, icons } from '../icons'
+import {
+  prepareMiniTimerIcon,
+  setMiniTimerIcon,
+  useMiniTimerIcon
+} from '../../utils/miniTimerIcon'
+import logo from '../../assets/logo.png'
 
 interface ProfileSectionProps {
   user: AuthUser
@@ -137,6 +143,8 @@ export function ProfileSection({
               Ctrl+Alt+T.
             </p>
           </div>
+
+          <MiniTimerIconSetting />
         </Stack>
       </Card>
 
@@ -165,6 +173,73 @@ export function ProfileSection({
         </Stack>
       </Card>
     </>
+  )
+}
+
+function MiniTimerIconSetting(): React.JSX.Element {
+  const fileInput = useRef<HTMLInputElement>(null)
+  const customIcon = useMiniTimerIcon()
+  const [busy, setBusy] = useState(false)
+
+  async function handleFile(file: File | undefined): Promise<void> {
+    if (!file) return
+    setBusy(true)
+    try {
+      setMiniTimerIcon(await prepareMiniTimerIcon(file))
+      showToast('Mini timer icon updated.', 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not use that icon', 'error')
+    } finally {
+      setBusy(false)
+      if (fileInput.current) fileInput.current.value = ''
+    }
+  }
+
+  function handleReset(): void {
+    try {
+      setMiniTimerIcon(null)
+      showToast('Mini timer icon reset to default.', 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not reset the icon', 'error')
+    }
+  }
+
+  return (
+    <div className="mini-icon-setting">
+      <span className="field__label">Mini timer icon</span>
+      <div className="mini-icon-setting__row">
+        <img className="mini-icon-setting__preview" src={customIcon ?? logo} alt="" />
+        <div className="mini-icon-setting__actions">
+          <div className="form-actions">
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={busy}
+              disabled={busy}
+              onClick={() => fileInput.current?.click()}
+            >
+              {customIcon ? 'Change icon' : 'Upload icon'}
+            </Button>
+            {customIcon && (
+              <Button variant="secondary" size="sm" disabled={busy} onClick={handleReset}>
+                Use default
+              </Button>
+            )}
+          </div>
+          <p className="field__hint">
+            Shown when you shrink the mini timer to an icon. Its ring turns green while running
+            and amber when paused. PNG, JPEG, WebP or GIF, saved on this computer.
+          </p>
+        </div>
+      </div>
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        hidden
+        onChange={(event) => void handleFile(event.target.files?.[0])}
+      />
+    </div>
   )
 }
 

@@ -2,6 +2,8 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 
 export type TimerCommand = 'start' | 'pause' | 'resume' | 'stop'
 
+export type MiniTimerMode = 'full' | 'icon'
+
 export type TimerState = {
   running: boolean
   isPaused: boolean
@@ -30,6 +32,14 @@ export interface ClovarsApi {
   toggleMiniTimer: () => void
   setMiniTimerAutoShow: (enabled: boolean) => void
   getMiniTimerState: () => Promise<TimerState>
+  getMiniTimerMode: () => Promise<MiniTimerMode>
+  setMiniTimerMode: (mode: MiniTimerMode) => void
+  onMiniTimerMode: (callback: (mode: MiniTimerMode) => void) => () => void
+  moveMiniTimer: (position: { x: number; y: number }) => void
+  showMiniTimerIconMenu: (hasCustomIcon: boolean) => void
+  onMiniTimerIconFile: (callback: (file: { bytes: Uint8Array; type: string }) => void) => () => void
+  onMiniTimerIconReset: (callback: () => void) => () => void
+  onMiniTimerIconError: (callback: (message: string) => void) => () => void
   // Window state
   onMainWindowState: (callback: (state: { minimized: boolean; visible: boolean; focused: boolean }) => void) => () => void
   onMiniTimerResized: (callback: (size: { width: number; height: number }) => void) => () => void

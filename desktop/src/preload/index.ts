@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 type TimerCommand = 'start' | 'pause' | 'resume' | 'stop'
+type MiniTimerMode = 'full' | 'icon'
 
 type TimerState = {
   running: boolean
@@ -69,6 +70,54 @@ const api = {
   },
   getMiniTimerState: (): Promise<TimerState> => {
     return ipcRenderer.invoke('mini-timer:get-state')
+  },
+  getMiniTimerMode: (): Promise<MiniTimerMode> => {
+    return ipcRenderer.invoke('mini-timer:get-mode')
+  },
+  setMiniTimerMode: (mode: MiniTimerMode): void => {
+    ipcRenderer.send('mini-timer:set-mode', mode)
+  },
+  onMiniTimerMode: (callback: (mode: MiniTimerMode) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void => {
+      callback(args[0] as MiniTimerMode)
+    }
+    ipcRenderer.on('mini-timer:mode', listener)
+    return () => {
+      ipcRenderer.removeListener('mini-timer:mode', listener)
+    }
+  },
+  moveMiniTimer: (position: { x: number; y: number }): void => {
+    ipcRenderer.send('mini-timer:move', position)
+  },
+  showMiniTimerIconMenu: (hasCustomIcon: boolean): void => {
+    ipcRenderer.send('mini-timer:icon-menu', hasCustomIcon)
+  },
+  onMiniTimerIconFile: (
+    callback: (file: { bytes: Uint8Array; type: string }) => void
+  ): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void => {
+      callback(args[0] as { bytes: Uint8Array; type: string })
+    }
+    ipcRenderer.on('mini-timer:icon-file', listener)
+    return () => {
+      ipcRenderer.removeListener('mini-timer:icon-file', listener)
+    }
+  },
+  onMiniTimerIconReset: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('mini-timer:icon-reset', listener)
+    return () => {
+      ipcRenderer.removeListener('mini-timer:icon-reset', listener)
+    }
+  },
+  onMiniTimerIconError: (callback: (message: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void => {
+      callback(String(args[0]))
+    }
+    ipcRenderer.on('mini-timer:icon-error', listener)
+    return () => {
+      ipcRenderer.removeListener('mini-timer:icon-error', listener)
+    }
   },
   // Window state
   onMainWindowState: (callback: (state: { minimized: boolean; visible: boolean; focused: boolean }) => void): (() => void) => {

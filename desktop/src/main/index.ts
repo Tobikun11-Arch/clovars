@@ -1,7 +1,19 @@
-import { app, shell, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, globalShortcut } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  Menu,
+  Tray,
+  nativeImage,
+  screen,
+  globalShortcut,
+  dialog
+} from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { MenuItemConstructorOptions } from 'electron'
-import { join } from 'path'
+import { readFile, stat } from 'fs/promises'
+import { extname, join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
@@ -29,6 +41,24 @@ let tray: Tray | null = null
 let isQuitting = false
 let miniTimerPosition: { x: number; y: number } | null = null
 let miniTimerAutoShow = true
+
+// Mini timer sizing. The full widget never shrinks below the size where the
+// ring, labels and buttons still fit; anything smaller is the icon mode.
+type MiniTimerMode = 'full' | 'icon'
+const MINI_FULL_MIN = { width: 180, height: 210 }
+const MINI_FULL_MAX = { width: 400, height: 400 }
+const MINI_FULL_DEFAULT = { width: 200, height: 240 }
+const MINI_ICON_SIZE = 84
+const MINI_ICON_MAX_BYTES = 10 * 1024 * 1024
+const MINI_ICON_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif'
+}
+let miniTimerMode: MiniTimerMode = 'full'
+let miniTimerFullSize = { ...MINI_FULL_DEFAULT }
 let timerState: TimerState = {
   running: false,
   isPaused: false,
@@ -330,25 +360,27 @@ function createMiniTimerWindow(): void {
   }
 
   const { width } = screen.getPrimaryDisplay().workAreaSize
-  const defaultX = width - 220
+  const defaultX = width - MINI_FULL_DEFAULT.width - 20
   const defaultY = 100
 
   const x = miniTimerPosition?.x ?? defaultX
   const y = miniTimerPosition?.y ?? defaultY
+  const isIcon = miniTimerMode === 'icon'
+  const size = isIcon ? { width: MINI_ICON_SIZE, height: MINI_ICON_SIZE } : miniTimerFullSize
 
   miniTimerWindow = new BrowserWindow({
-    width: 200,
-    height: 200,
-    minWidth: 150,
-    minHeight: 150,
-    maxWidth: 400,
-    maxHeight: 400,
+    width: size.width,
+    height: size.height,
+    minWidth: isIcon ? MINI_ICON_SIZE : MINI_FULL_MIN.width,
+    minHeight: isIcon ? MINI_ICON_SIZE : MINI_FULL_MIN.height,
+    maxWidth: isIcon ? MINI_ICON_SIZE : MINI_FULL_MAX.width,
+    maxHeight: isIcon ? MINI_ICON_SIZE : MINI_FULL_MAX.height,
     x,
     y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    resizable: true,
+    resizable: !isIcon,
     skipTaskbar: true,
     minimizable: false,
     maximizable: false,
@@ -384,6 +416,9 @@ function createMiniTimerWindow(): void {
   miniTimerWindow.on('resized', () => {
     if (miniTimerWindow) {
       const [width, height] = miniTimerWindow.getSize()
+      if (miniTimerMode === 'full') {
+        miniTimerFullSize = clampFullSize(width, height)
+      }
       // Send new size to renderer to adjust component scaling
       miniTimerWindow.webContents.send('mini-timer:resized', { width, height })
     }
@@ -406,6 +441,97 @@ function createMiniTimerWindow(): void {
   } else {
     miniTimerWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '#/mini' })
   }
+}
+
+function clampFullSize(width: number, height: number): { width: number; height: number } {
+  return {
+    width: Math.round(Math.max(MINI_FULL_MIN.width, Math.min(MINI_FULL_MAX.width, width))),
+    height: Math.round(Math.max(MINI_FULL_MIN.height, Math.min(MINI_FULL_MAX.height, height)))
+  }
+}
+
+function setMiniTimerMode(mode: MiniTimerMode): void {
+  miniTimerMode = mode
+  const win = miniTimerWindow
+  if (!win || win.isDestroyed()) return
+
+  const [x, y] = win.getPosition()
+  const [currentWidth] = win.getSize()
+
+  if (mode === 'icon') {
+    win.setResizable(false)
+    win.setMinimumSize(MINI_ICON_SIZE, MINI_ICON_SIZE)
+    win.setMaximumSize(MINI_ICON_SIZE, MINI_ICON_SIZE)
+    win.setSize(MINI_ICON_SIZE, MINI_ICON_SIZE)
+    // Keep the icon where the widget's top-right corner was, so it shrinks
+    // toward the corner people usually park it in.
+    win.setPosition(Math.round(x + currentWidth - MINI_ICON_SIZE), y)
+  } else {
+    const { width, height } = miniTimerFullSize
+    win.setMaximumSize(MINI_FULL_MAX.width, MINI_FULL_MAX.height)
+    win.setMinimumSize(MINI_FULL_MIN.width, MINI_FULL_MIN.height)
+    win.setResizable(true)
+    win.setSize(width, height)
+
+    // Grow from the icon's top-right corner and stay inside the screen.
+    const area = screen.getDisplayNearestPoint({ x, y }).workArea
+    const nextX = Math.max(area.x, Math.min(x + currentWidth - width, area.x + area.width - width))
+    const nextY = Math.max(area.y, Math.min(y, area.y + area.height - height))
+    win.setPosition(Math.round(nextX), Math.round(nextY))
+  }
+
+  const [px, py] = win.getPosition()
+  miniTimerPosition = { x: px, y: py }
+  win.webContents.send('mini-timer:mode', mode)
+}
+
+async function pickMiniTimerIcon(): Promise<void> {
+  const win = miniTimerWindow
+  if (!win || win.isDestroyed()) return
+
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Choose mini timer icon',
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }]
+  })
+  if (result.canceled || result.filePaths.length === 0) return
+
+  const filePath = result.filePaths[0]
+  const type = MINI_ICON_TYPES[extname(filePath).toLowerCase()]
+  if (!type) {
+    win.webContents.send('mini-timer:icon-error', 'Choose a PNG, JPEG, WebP or GIF image.')
+    return
+  }
+
+  const info = await stat(filePath)
+  if (info.size > MINI_ICON_MAX_BYTES) {
+    win.webContents.send('mini-timer:icon-error', 'That image is larger than 10 MB.')
+    return
+  }
+
+  const bytes = await readFile(filePath)
+  if (!win.isDestroyed()) {
+    win.webContents.send('mini-timer:icon-file', { bytes: new Uint8Array(bytes), type })
+  }
+}
+
+function showMiniTimerIconMenu(hasCustomIcon: boolean): void {
+  const win = miniTimerWindow
+  if (!win || win.isDestroyed()) return
+
+  Menu.buildFromTemplate([
+    { label: 'Expand timer', click: () => setMiniTimerMode('full') },
+    { label: 'Open Clovars', click: () => showWindow() },
+    { type: 'separator' },
+    { label: 'Change icon…', click: () => void pickMiniTimerIcon() },
+    {
+      label: 'Use default icon',
+      enabled: hasCustomIcon,
+      click: () => win.webContents.send('mini-timer:icon-reset')
+    },
+    { type: 'separator' },
+    { label: 'Hide mini timer', click: () => hideMiniTimerWindow() }
+  ]).popup({ window: win })
 }
 
 function hideMiniTimerWindow(): void {
@@ -616,11 +742,41 @@ app.whenReady().then(() => {
       typeof size.width === 'number' &&
       typeof size.height === 'number'
     ) {
-      const { width, height } = size
-      const clampedWidth = Math.max(150, Math.min(400, width))
-      const clampedHeight = Math.max(150, Math.min(400, height))
-      miniTimerWindow.setSize(clampedWidth, clampedHeight)
+      if (miniTimerMode !== 'full') return
+      const clamped = clampFullSize(size.width, size.height)
+      miniTimerFullSize = clamped
+      miniTimerWindow.setSize(clamped.width, clamped.height)
     }
+  })
+
+  ipcMain.handle('mini-timer:get-mode', () => miniTimerMode)
+
+  ipcMain.on('mini-timer:set-mode', (_event, mode: unknown) => {
+    if (mode === 'full' || mode === 'icon') setMiniTimerMode(mode)
+  })
+
+  ipcMain.on('mini-timer:move', (_event, position: unknown) => {
+    if (
+      miniTimerWindow &&
+      !miniTimerWindow.isDestroyed() &&
+      position &&
+      typeof position === 'object' &&
+      'x' in position &&
+      'y' in position &&
+      typeof position.x === 'number' &&
+      typeof position.y === 'number' &&
+      Number.isFinite(position.x) &&
+      Number.isFinite(position.y)
+    ) {
+      const x = Math.round(position.x)
+      const y = Math.round(position.y)
+      miniTimerWindow.setPosition(x, y)
+      miniTimerPosition = { x, y }
+    }
+  })
+
+  ipcMain.on('mini-timer:icon-menu', (_event, hasCustomIcon: unknown) => {
+    showMiniTimerIconMenu(hasCustomIcon === true)
   })
 
   ipcMain.handle('mini-timer:get-state', () => {

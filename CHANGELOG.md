@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Edit your profile information from the Profile screen
+- Upload and change your profile photo
 - Weekly timesheets and approvals (planned)
 
 ## [0.1.0] - YYYY-MM-DD
