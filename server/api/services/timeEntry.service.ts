@@ -28,20 +28,22 @@ type Lookup = {
 };
 
 export async function buildLookup(workspaceId: string): Promise<Lookup> {
+  // Only the fields the DTO needs, as plain objects (no document hydration):
+  // this runs on every time-entry request.
   const [projects, tasks, tags] = await Promise.all([
-    projectRepository.findByWorkspace(workspaceId),
-    taskRepository.findByWorkspace(workspaceId),
-    tagRepository.findByWorkspace(workspaceId)
+    projectRepository.findNamesByWorkspace(workspaceId),
+    taskRepository.findNamesByWorkspace(workspaceId),
+    tagRepository.findLabelsByWorkspace(workspaceId)
   ]);
 
   return {
-    projects: new Map(projects.map((project) => [project.id, project.name])),
-    tasks: new Map(tasks.map((task) => [task.id, task.name])),
+    projects: new Map(projects.map((project) => [String(project._id), project.name])),
+    tasks: new Map(tasks.map((task) => [String(task._id), task.name])),
     tags: new Map(
-      tags.map((tag) => [
-        tag.id,
-        {id: tag.id, name: tag.name, color: tag.color}
-      ])
+      tags.map((tag) => {
+        const id = String(tag._id);
+        return [id, {id, name: tag.name, color: tag.color}];
+      })
     )
   };
 }
@@ -354,27 +356,27 @@ export const timeEntryService = {
     userId: string,
     filters: TimeEntryListFilters
   ) {
-    await enforceLimitForUser(userId);
-    const entries = await timeEntryRepository.list(
-      workspaceId,
-      userId,
-      filters
-    );
-    const lookup = await buildLookup(workspaceId);
+    // The name lookup does not depend on the entries, so load both at once.
+    const [entries, lookup] = await Promise.all([
+      enforceLimitForUser(userId).then(() =>
+        timeEntryRepository.list(workspaceId, userId, filters)
+      ),
+      buildLookup(workspaceId)
+    ]);
 
     return entries.map((entry) => toTimeEntryDto(entry, lookup));
   },
 
   async getRunning(workspaceId: string, userId: string) {
-    await enforceLimitForUser(userId);
-    const entry = await timeEntryRepository.findRunningByUserAndWorkspace(
-      userId,
-      workspaceId
-    );
+    const [entry, lookup] = await Promise.all([
+      enforceLimitForUser(userId).then(() =>
+        timeEntryRepository.findRunningByUserAndWorkspace(userId, workspaceId)
+      ),
+      buildLookup(workspaceId)
+    ]);
 
     if (!entry) return null;
 
-    const lookup = await buildLookup(workspaceId);
     return toTimeEntryDto(entry, lookup);
   },
 

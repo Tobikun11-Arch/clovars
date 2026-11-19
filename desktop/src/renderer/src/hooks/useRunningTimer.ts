@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   fetchGlobalRunningTimeEntry,
   pauseTimer,
@@ -8,12 +8,61 @@ import {
 } from '../api/time'
 import type { TimeEntry } from '../types/time'
 import { showToast } from '../components/ui'
+import { invalidateQueries } from '../lib/queryCache'
 
 const ACTIVE_WORKSPACE_KEY = 'clovars.activeWorkspaceId'
 // Mirrors MAX_ENTRY_SECONDS on the server, which does the actual stopping.
 const MAX_TIMER_SECONDS = 24 * 60 * 60
 const AUTO_STOPPED_MESSAGE =
   'Your timer reached 24 hours, so Clovars stopped and saved it automatically.'
+// Window focus also refreshes, but not more often than this.
+const FOCUS_REFRESH_MIN_MS = 10_000
+
+/** Seconds on the running timer at `now`, capped at the 24-hour limit. */
+export function computeElapsedSeconds(running: TimeEntry | null, now = Date.now()): number {
+  if (!running) return 0
+  const live = running.isPaused
+    ? 0
+    : Math.max(0, Math.floor((now - new Date(running.lastResumedAt ?? running.startTime).getTime()) / 1000))
+  return Math.min(Math.max(0, running.durationSeconds + live), MAX_TIMER_SECONDS)
+}
+
+// One shared one-second clock, so every live display ticks in step.
+let clockNow = Date.now()
+let clockInterval: number | null = null
+const clockListeners = new Set<() => void>()
+
+function subscribeClock(listener: () => void): () => void {
+  clockListeners.add(listener)
+  if (clockInterval === null) {
+    clockNow = Date.now()
+    clockInterval = window.setInterval(() => {
+      clockNow = Date.now()
+      clockListeners.forEach((notify) => notify())
+    }, 1000)
+  }
+  return () => {
+    clockListeners.delete(listener)
+    if (clockListeners.size === 0 && clockInterval !== null) {
+      window.clearInterval(clockInterval)
+      clockInterval = null
+    }
+  }
+}
+
+const noSubscription = (): (() => void) => () => {}
+const readClock = (): number => clockNow
+
+/**
+ * Live elapsed seconds for `running`, ticking once a second. Use it in the
+ * component that shows the clock, so only that component re-renders each
+ * second instead of the whole app.
+ */
+export function useElapsedSeconds(running: TimeEntry | null): number {
+  const ticking = Boolean(running && !running.isPaused)
+  const now = useSyncExternalStore(ticking ? subscribeClock : noSubscription, readClock)
+  return computeElapsedSeconds(running, now)
+}
 
 interface UseRunningTimerOptions {
   enabled: boolean
@@ -22,7 +71,6 @@ interface UseRunningTimerOptions {
 
 export interface UseRunningTimerResult {
   running: TimeEntry | null
-  elapsedSeconds: number
   applyRunning: (entry: TimeEntry | null) => void
   refresh: () => Promise<void>
   startQuickTimer: () => Promise<void>
@@ -37,12 +85,20 @@ export function useRunningTimer({
   onError
 }: UseRunningTimerOptions): UseRunningTimerResult {
   const [running, setRunning] = useState<TimeEntry | null>(null)
-  const [now, setNow] = useState(() => Date.now())
   const busyRef = useRef(false)
+  const runningKeyRef = useRef('none')
+  const lastRefreshRef = useRef(0)
 
   const applyRunning = useCallback((entry: TimeEntry | null): void => {
     setRunning(entry)
-    setNow(Date.now())
+
+    // Starting, stopping, pausing or resuming changes the entries lists, so any
+    // cached list, dashboard or report must be reloaded next time it is shown.
+    const key = entry ? `${entry.id}:${entry.isPaused}` : 'none'
+    if (key !== runningKeyRef.current) {
+      runningKeyRef.current = key
+      invalidateQueries((cacheKey) => cacheKey.includes(':entries'))
+    }
 
     window.api?.updateTimerState({
       running: Boolean(entry),
@@ -65,6 +121,7 @@ export function useRunningTimer({
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!enabled) return
+    lastRefreshRef.current = Date.now()
 
     try {
       const { entry, autoStopped } = await fetchGlobalRunningTimeEntry()
@@ -91,6 +148,7 @@ export function useRunningTimer({
     }, 30000)
 
     const onFocus = (): void => {
+      if (Date.now() - lastRefreshRef.current < FOCUS_REFRESH_MIN_MS) return
       void refresh()
     }
 
@@ -102,16 +160,6 @@ export function useRunningTimer({
       window.removeEventListener('focus', onFocus)
     }
   }, [enabled, refresh])
-
-  useEffect(() => {
-    if (!running) return
-
-    const interval = window.setInterval(() => {
-      setNow(Date.now())
-    }, 1000)
-
-    return () => window.clearInterval(interval)
-  }, [running])
 
   const startQuickTimer = useCallback(async (): Promise<void> => {
     if (!enabled || running || busyRef.current) return
@@ -187,6 +235,7 @@ export function useRunningTimer({
 
   const clear = useCallback((): void => {
     setRunning(null)
+    runningKeyRef.current = 'none'
     window.api?.updateTimerState({
       running: false,
       isPaused: false,
@@ -222,38 +271,29 @@ export function useRunningTimer({
     return unsubscribe
   }, [enabled, startQuickTimer, pause, resume, stop])
 
-  const elapsedSeconds = running
-    ? Math.max(
-        0,
-        running.durationSeconds +
-          (running.isPaused
-            ? 0
-            : Math.floor(
-                (now - new Date(running.lastResumedAt ?? running.startTime).getTime()) / 1000
-              ))
-      )
-    : 0
-
   // While the app is open, ask the server as soon as the 24-hour mark is hit
   // instead of waiting up to 30 seconds for the next poll. Once per entry.
   const limitCheckedFor = useRef<string | null>(null)
-  const reachedLimit = Boolean(running && !running.isPaused && elapsedSeconds >= MAX_TIMER_SECONDS)
 
   useEffect(() => {
-    if (!reachedLimit || !running || limitCheckedFor.current === running.id) return
-    limitCheckedFor.current = running.id
-    void refresh()
-  }, [reachedLimit, running, refresh])
+    if (!running || running.isPaused || limitCheckedFor.current === running.id) return
+    const remainingMs = (MAX_TIMER_SECONDS - computeElapsedSeconds(running)) * 1000
+    const entryId = running.id
+    // Timers cap at about 24.8 days; the 30-second poll covers anything longer.
+    const handle = window.setTimeout(
+      () => {
+        limitCheckedFor.current = entryId
+        void refresh()
+      },
+      Math.min(Math.max(0, remainingMs), 2_000_000_000)
+    )
+    return () => window.clearTimeout(handle)
+  }, [running, refresh])
 
-  return {
-    running,
-    elapsedSeconds: Math.min(elapsedSeconds, MAX_TIMER_SECONDS),
-    applyRunning,
-    refresh,
-    startQuickTimer,
-    pause,
-    resume,
-    stop,
-    clear
-  }
+  // Stable between renders unless something changed, so consumers' effects
+  // (e.g. the quit-confirmation listener) do not re-subscribe on every render.
+  return useMemo(
+    () => ({ running, applyRunning, refresh, startQuickTimer, pause, resume, stop, clear }),
+    [running, applyRunning, refresh, startQuickTimer, pause, resume, stop, clear]
+  )
 }

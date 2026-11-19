@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { displayName, type AuthUser } from '../../types/auth'
-import type { UseRunningTimerResult } from '../../hooks/useRunningTimer'
+import { useElapsedSeconds, type UseRunningTimerResult } from '../../hooks/useRunningTimer'
+import type { TimeEntry } from '../../types/time'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import { NAV_GROUPS, metaFor } from '../../routes'
 import type { NavGroup } from '../../routes'
@@ -347,9 +348,7 @@ export function AppShell({
             {timer.running && (
               <div className={cn('timer-chip', timer.running.isPaused && 'is-paused')}>
                 <span className="timer-chip__dot" aria-hidden="true" />
-                <span className="timer-chip__clock tabular">
-                  {formatDuration(timer.elapsedSeconds)}
-                </span>
+                <TimerChipClock running={timer.running} />
                 <span className="timer-chip__label">
                   {timer.running.projectName ??
                     timer.running.description ??
@@ -480,4 +479,10 @@ export function AppShell({
       <JoinWorkspaceDialog open={joinOpen} onClose={() => setJoinOpen(false)} />
     </div>
   )
+}
+
+/** Only this clock re-renders every second, not the shell or the page. */
+function TimerChipClock({ running }: { running: TimeEntry }): React.JSX.Element {
+  const elapsed = useElapsedSeconds(running)
+  return <span className="timer-chip__clock tabular">{formatDuration(elapsed)}</span>
 }

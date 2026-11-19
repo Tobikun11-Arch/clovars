@@ -44,7 +44,11 @@ export async function loadWorkspace(
       );
     }
 
-    const workspace = await workspaceRepository.findById(workspaceId);
+    // Independent lookups: run them together to save a database round trip.
+    const [workspace, membership] = await Promise.all([
+      workspaceRepository.findById(workspaceId),
+      membershipRepository.findByWorkspaceAndUser(workspaceId, req.auth.userId)
+    ]);
 
     if (!workspace) {
       throw new ApiError(
@@ -53,11 +57,6 @@ export async function loadWorkspace(
         'Workspace not found'
       );
     }
-
-    const membership = await membershipRepository.findByWorkspaceAndUser(
-      workspaceId,
-      req.auth.userId
-    );
 
     if (!membership) {
       throw new ApiError(

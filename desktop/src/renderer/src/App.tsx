@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiRequest } from './api/client'
+import { clearQueryCache } from './lib/queryCache'
 import { WorkspaceProvider } from './contexts/WorkspaceContext'
 import { useHashRoute } from './hooks/useHashRoute'
 import { metaFor } from './routes'
@@ -290,6 +291,7 @@ function App(): React.JSX.Element {
       /* Logging out locally is still the right outcome. */
     } finally {
       timer.clear()
+      clearQueryCache()
       setUser(null)
       setSubmitting(false)
       navigate('/')
@@ -417,15 +419,11 @@ function App(): React.JSX.Element {
     switch (path) {
       case '/time':
         return (
-          <TimeSection
-            running={timer.running}
-            runningElapsedSeconds={timer.elapsedSeconds}
-            onRunningChange={timer.applyRunning}
-          />
+          <TimeSection running={timer.running} onRunningChange={timer.applyRunning} />
         )
       case '/dashboard':
         return (
-          <DashboardSection running={timer.running} runningElapsedSeconds={timer.elapsedSeconds} />
+          <DashboardSection running={timer.running} />
         )
       case '/reports':
         return <ReportsSection />

@@ -1,11 +1,9 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
-import { fetchProjects, fetchTags } from '../../api/work'
-import { fetchMembers } from '../../api/workspaces'
 import { fetchReport, exportReportCsv, exportDetailedReportCsv } from '../../api/reports'
-import type { Project, Tag } from '../../types/work'
+import { fetchQuery, isQueryFresh, peekQuery } from '../../lib/queryCache'
+import { useMembers, useProjects, useTags, workspaceKeys } from '../../hooks/useWorkspaceData'
 import type { ReportFilters, ReportGroupBy, ReportResult } from '../../types/report'
-import type { WorkspaceMember } from '../../types/workspace'
 import { formatDuration, formatDurationShort, formatShortDate } from '../../utils/time'
 import {
   Avatar,
@@ -24,6 +22,8 @@ import {
   showToast
 } from '../ui'
 import { Icon, icons } from '../icons'
+
+const EMPTY_LIST: never[] = []
 
 type Preset = 'this-week' | 'last-week' | 'this-month' | 'last-month' | 'all-time'
 
@@ -82,10 +82,18 @@ function presetRange(preset: Preset, weekStartsOn: number): { from: string; to: 
 
 export function ReportsSection(): React.JSX.Element {
   const { activeId, activeWorkspace } = useWorkspace()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [tags, setTags] = useState<Tag[]>([])
-  const [members, setMembers] = useState<WorkspaceMember[]>([])
-  const [optionsError, setOptionsError] = useState(false)
+  // Filter options come from the shared cache, so they are there at once when
+  // coming back to this page and refresh in the background.
+  const projectsQuery = useProjects(activeId)
+  const tagsQuery = useTags(activeId)
+  const membersQuery = useMembers(activeId)
+  const projects = projectsQuery.data ?? EMPTY_LIST
+  const tags = tagsQuery.data ?? EMPTY_LIST
+  const members = membersQuery.data ?? EMPTY_LIST
+  const optionsError = [projectsQuery, tagsQuery, membersQuery].some(
+    (query) => !query.data && query.error
+  )
+  const reportRequest = useRef(0)
 
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -103,37 +111,6 @@ export function ReportsSection(): React.JSX.Element {
 
   const isAdmin = activeWorkspace?.role === 'admin' || activeWorkspace?.role === 'owner'
 
-  useEffect(() => {
-    if (!activeId) return
-    const workspaceId = activeId
-    let cancelled = false
-
-    async function load(): Promise<void> {
-      setOptionsError(false)
-      try {
-        const [nextProjects, nextTags, nextMembers] = await Promise.all([
-          fetchProjects(workspaceId),
-          fetchTags(workspaceId),
-          fetchMembers(workspaceId)
-        ])
-        if (cancelled) return
-        setProjects(nextProjects)
-        setTags(nextTags)
-        setMembers(nextMembers)
-      } catch (err) {
-        if (!cancelled) {
-          setOptionsError(true)
-          showToast(err instanceof Error ? err.message : 'Could not load filter options', 'error')
-        }
-      }
-    }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [activeId])
-
   // Load the current week automatically so the page never starts blank.
   useEffect(() => {
     if (!activeId) return
@@ -148,7 +125,7 @@ export function ReportsSection(): React.JSX.Element {
       setMemberId('')
       setGroupBy('date')
       setActivePreset('this-week')
-      void loadReport(workspaceId, range, true)
+      void loadReport(workspaceId, range, true, true)
     }, 0)
     return () => window.clearTimeout(handle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,21 +150,45 @@ export function ReportsSection(): React.JSX.Element {
     return filters
   }
 
+  /**
+   * Show the report for these filters. A cached copy is shown at once (no
+   * spinner) and refreshed; on page load a recent cached copy is used as is.
+   */
   async function loadReport(
     workspaceId: string,
     overrides: { from?: string; to?: string } = {},
-    resetFilters = false
+    resetFilters = false,
+    allowCached = false
   ): Promise<void> {
-    setLoading(true)
+    const filters = buildFilters(overrides, resetFilters)
+    const key = `${workspaceKeys.entries(workspaceId)}:report:${JSON.stringify(filters)}`
+    const request = ++reportRequest.current
+    const cached = peekQuery<ReportResult>(key)
+
     setError(null)
+    if (cached) {
+      setReport(cached)
+      if (allowCached && isQueryFresh(key)) return
+    } else {
+      setLoading(true)
+    }
+
     try {
-      const result = await fetchReport(workspaceId, buildFilters(overrides, resetFilters))
-      setReport(result)
+      const result = await fetchQuery(key, () => fetchReport(workspaceId, filters), true)
+      if (request === reportRequest.current) setReport(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load the report')
-      setReport(null)
+      if (request === reportRequest.current) {
+        const message = err instanceof Error ? err.message : 'Could not load the report'
+        // Keep the cached report on screen if the refresh fails.
+        if (cached) {
+          showToast(message, 'error')
+        } else {
+          setError(message)
+          setReport(null)
+        }
+      }
     } finally {
-      setLoading(false)
+      if (request === reportRequest.current) setLoading(false)
     }
   }
 

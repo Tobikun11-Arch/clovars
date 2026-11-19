@@ -1,4 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQuery } from '../../lib/queryCache'
+import { useElapsedSeconds } from '../../hooks/useRunningTimer'
+import {
+  invalidateEntries,
+  reloadWorkspaceData,
+  useProjects,
+  useTags,
+  useTasks,
+  workspaceKeys
+} from '../../hooks/useWorkspaceData'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import {
   createManualTimeEntry,
@@ -10,8 +20,8 @@ import {
   stopTimer,
   updateTimeEntry
 } from '../../api/time'
-import { createTask, fetchProjects, fetchTags, fetchTasks } from '../../api/work'
-import type { Project, Tag, Task } from '../../types/work'
+import { createTask } from '../../api/work'
+import type { Task } from '../../types/work'
 import type { ManualTimeEntryInput, StartTimerInput, TimeEntry, UpdateTimeEntryInput } from '../../types/time'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import {
@@ -42,97 +52,81 @@ import { CircularProgress } from './CircularProgress'
 
 interface TimeSectionProps {
   running: TimeEntry | null
-  runningElapsedSeconds: number
   onRunningChange: (entry: TimeEntry | null) => void
 }
 
 const ENTRIES_LIMIT = 500
+
+const EMPTY_LIST: never[] = []
+
+/** `base` plus the entries of `extra` it does not already contain. */
+function mergeEntries(base: TimeEntry[], extra: TimeEntry[]): TimeEntry[] {
+  if (extra.length === 0) return base
+  const known = new Set(base.map((entry) => entry.id))
+  return [...base, ...extra.filter((entry) => !known.has(entry.id))]
+}
 
 /** Start of last week: the list shows this week and last week by default. */
 function defaultListFrom(): Date {
   return addDays(startOfWeek(new Date()), -7)
 }
 
+/** Entries older than the default window, added by "Show older entries". */
+interface OlderEntries {
+  workspaceId: string | null
+  /** Start of the oldest week shown. */
+  from: Date
+  entries: TimeEntry[]
+  reachedEnd: boolean
+}
+
 export function TimeSection({
   running,
-  runningElapsedSeconds,
   onRunningChange
 }: TimeSectionProps): React.JSX.Element {
   const { activeId, activeWorkspace } = useWorkspace()
   const reducedMotion = useReducedMotion()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [tags, setTags] = useState<Tag[]>([])
-  const [entries, setEntries] = useState<TimeEntry[]>([])
+  const runningElapsedSeconds = useElapsedSeconds(running)
+  const projects = useProjects(activeId).data ?? EMPTY_LIST
+  const tasks = useTasks(activeId).data ?? EMPTY_LIST
+  const tags = useTags(activeId).data ?? EMPTY_LIST
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [formVersion, setFormVersion] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [pageLoading, setPageLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
-  // The list shows this week and last week; "Show older entries" moves this
-  // back a week at a time. Older history lives in Reports.
-  const listFromRef = useRef<Date>(defaultListFrom())
-  const listWorkspaceRef = useRef<string | null>(null)
+  // The list shows this week and last week. It is cached, so coming back to
+  // this page shows it at once and refreshes in the background. "Show older
+  // entries" adds a week at a time on top; older history lives in Reports.
+  const [listFrom] = useState(defaultListFrom)
+  const entriesQuery = useQuery(
+    activeId ? `${workspaceKeys.entries(activeId)}:list:${listFrom.toISOString()}` : null,
+    () => fetchTimeEntries(activeId!, { from: listFrom.toISOString(), limit: ENTRIES_LIMIT })
+  )
+  const refreshEntries = entriesQuery.refresh
+  const [olderState, setOlderState] = useState<OlderEntries | null>(null)
+  // Switching workspace starts over at the default two weeks.
+  const older: OlderEntries =
+    olderState && olderState.workspaceId === activeId
+      ? olderState
+      : { workspaceId: activeId, from: listFrom, entries: [], reachedEnd: false }
   const [loadingOlder, setLoadingOlder] = useState(false)
-  const [reachedEnd, setReachedEnd] = useState(false)
   const [timerMode, setTimerMode] = useState<'timer' | 'manual'>('timer')
 
-  const runningId = running?.id ?? null
-  const runningPaused = running?.isPaused ?? false
+  const entries = mergeEntries(entriesQuery.data ?? EMPTY_LIST, older.entries)
+  // Keep showing what we have if a background refresh fails.
+  const loadError = entriesQuery.data ? null : entriesQuery.error
+  const pageLoading = entriesQuery.loading
+
+  // Starting, stopping, pausing or resuming changes the list: reload it then.
+  // Not on mount, where the cache already decides whether to reload.
+  const runningKey = running ? `${running.id}:${running.isPaused}` : 'none'
+  const lastRunningKey = useRef(runningKey)
 
   useEffect(() => {
-    if (!activeId) return
-
-    const workspaceId = activeId
-    let cancelled = false
-
-    async function load(): Promise<void> {
-      setPageLoading(true)
-      setLoadError(null)
-
-      // Switching workspace starts over at the default two weeks.
-      const workspaceChanged = listWorkspaceRef.current !== workspaceId
-      if (workspaceChanged) {
-        listWorkspaceRef.current = workspaceId
-        listFromRef.current = defaultListFrom()
-      }
-
-      try {
-        const [nextProjects, nextTasks, nextTags, nextEntries] = await Promise.all([
-          fetchProjects(workspaceId),
-          fetchTasks(workspaceId),
-          fetchTags(workspaceId),
-          fetchTimeEntries(workspaceId, {
-            from: listFromRef.current.toISOString(),
-            limit: ENTRIES_LIMIT
-          })
-        ])
-
-        if (cancelled) return
-
-        if (workspaceChanged) setReachedEnd(false)
-
-        setProjects(nextProjects)
-        setTasks(nextTasks)
-        setTags(nextTags)
-        setEntries(nextEntries)
-      } catch (err) {
-        if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : 'Could not load time data')
-        }
-      } finally {
-        if (!cancelled) setPageLoading(false)
-      }
-    }
-
-    void load()
-
-    return () => {
-      cancelled = true
-    }
-  }, [activeId, runningId, runningPaused, reloadKey])
+    if (lastRunningKey.current === runningKey) return
+    lastRunningKey.current = runningKey
+    refreshEntries().catch(() => {})
+  }, [runningKey, refreshEntries])
 
   // Listen for edit request from mini timer
   useEffect(() => {
@@ -219,6 +213,7 @@ export function TimeSection({
       if (editingEntry) {
         const updated = await updateTimeEntry(activeId, editingEntry.id, input)
         showToast('Time entry updated.', 'success')
+        updateOlder((list) => list.map((entry) => (entry.id === updated.id ? updated : entry)))
 
         // If editing a running timer, update the running state
         if (editingEntry.isRunning) {
@@ -233,7 +228,7 @@ export function TimeSection({
 
       setEditingEntry(null)
       setDrawerOpen(false)
-      setEntries(await fetchTimeEntries(activeId))
+      await afterEntriesChanged(activeId)
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Could not save the time entry', 'error')
     } finally {
@@ -256,7 +251,8 @@ export function TimeSection({
     setLoading(true)
     try {
       await deleteTimeEntry(activeId, entry.id)
-      setEntries(await fetchTimeEntries(activeId))
+      updateOlder((list) => list.filter((item) => item.id !== entry.id))
+      await afterEntriesChanged(activeId)
       if (editingEntry?.id === entry.id) {
         setEditingEntry(null)
         setDrawerOpen(false)
@@ -274,7 +270,7 @@ export function TimeSection({
 
     try {
       const task = await createTask(activeId, { name, projectId })
-      setTasks(await fetchTasks(activeId))
+      await reloadWorkspaceData.tasks(activeId)
       showToast(`Task "${task.name}" created.`, 'success')
       return task
     } catch (err) {
@@ -283,45 +279,67 @@ export function TimeSection({
     }
   }
 
+  /** Reload the list, and mark the dashboard and report caches out of date. */
+  async function afterEntriesChanged(workspaceId: string): Promise<void> {
+    invalidateEntries(workspaceId)
+    await refreshEntries()
+  }
+
+  function updateOlder(update: (list: TimeEntry[]) => TimeEntry[]): void {
+    setOlderState((state) =>
+      state && state.workspaceId === activeId ? { ...state, entries: update(state.entries) } : state
+    )
+  }
+
   async function handleShowOlder(): Promise<void> {
     if (!activeId || loadingOlder) return
 
     const workspaceId = activeId
-    const before = new Date(listFromRef.current.getTime() - 1).toISOString()
+    const current = older
+    const before = new Date(current.from.getTime() - 1).toISOString()
+    // Ignore the result if the workspace or the window changed meanwhile.
+    const stillCurrent = (state: OlderEntries | null): boolean =>
+      (state?.workspaceId === workspaceId ? state.from : listFrom).getTime() ===
+      current.from.getTime()
     setLoadingOlder(true)
 
     try {
-      let olderFrom = addDays(listFromRef.current, -7)
-      let older = await fetchTimeEntries(workspaceId, {
+      let olderFrom = addDays(current.from, -7)
+      let fetched = await fetchTimeEntries(workspaceId, {
         from: olderFrom.toISOString(),
         to: before,
         limit: ENTRIES_LIMIT
       })
 
-      if (older.length === 0) {
+      if (fetched.length === 0) {
         // Skip empty weeks: jump straight to the week of the next older entry.
         const [latest] = await fetchTimeEntries(workspaceId, { to: before, limit: 1 })
 
         if (!latest) {
-          setReachedEnd(true)
+          setOlderState((state) =>
+            stillCurrent(state) ? { ...current, reachedEnd: true } : state
+          )
           return
         }
 
         olderFrom = startOfWeek(new Date(latest.startTime))
-        older = await fetchTimeEntries(workspaceId, {
+        fetched = await fetchTimeEntries(workspaceId, {
           from: olderFrom.toISOString(),
           to: before,
           limit: ENTRIES_LIMIT
         })
       }
 
-      if (listWorkspaceRef.current !== workspaceId) return
-
-      listFromRef.current = olderFrom
-      setEntries((current) => {
-        const known = new Set(current.map((entry) => entry.id))
-        return [...current, ...older.filter((entry) => !known.has(entry.id))]
-      })
+      setOlderState((state) =>
+        stillCurrent(state)
+          ? {
+              workspaceId,
+              from: olderFrom,
+              entries: mergeEntries(current.entries, fetched),
+              reachedEnd: false
+            }
+          : state
+      )
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Could not load older entries', 'error')
     } finally {
@@ -533,7 +551,7 @@ export function TimeSection({
           <ErrorState
             title="Could not load time entries"
             message={loadError}
-            onRetry={() => setReloadKey((key) => key + 1)}
+            onRetry={() => void refreshEntries().catch(() => {})}
           />
         ) : pageLoading ? (
           <div className="card">
@@ -554,7 +572,7 @@ export function TimeSection({
             onAdd={openNewEntry}
             onShowOlder={() => void handleShowOlder()}
             loadingOlder={loadingOlder}
-            reachedEnd={reachedEnd}
+            reachedEnd={older.reachedEnd}
           />
         )}
       </Section>

@@ -3,23 +3,34 @@ const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://
 console.info('Clovars API_URL =', API_URL)
 
 let csrfToken: string | null = null
+let csrfPromise: Promise<string> | null = null
 let refreshPromise: Promise<boolean> | null = null
 
 async function fetchCsrfToken(force = false): Promise<string> {
   if (!force && csrfToken) return csrfToken
+  // Concurrent callers share one request instead of each fetching a token.
+  if (csrfPromise) return csrfPromise
 
-  const response = await fetch(`${API_URL}/api/auth/csrf`, {
-    method: 'GET',
-    credentials: 'include'
-  })
+  csrfPromise = (async (): Promise<string> => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/csrf`, {
+        method: 'GET',
+        credentials: 'include'
+      })
 
-  if (!response.ok) {
-    throw new Error(`Failed to obtain CSRF token (${response.status})`)
-  }
+      if (!response.ok) {
+        throw new Error(`Failed to obtain CSRF token (${response.status})`)
+      }
 
-  const data = (await response.json()) as { csrfToken: string }
-  csrfToken = data.csrfToken
-  return csrfToken
+      const data = (await response.json()) as { csrfToken: string }
+      csrfToken = data.csrfToken
+      return csrfToken
+    } finally {
+      csrfPromise = null
+    }
+  })()
+
+  return csrfPromise
 }
 
 export async function ensureCsrfToken(): Promise<string> {
@@ -75,8 +86,6 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
       headers,
       credentials: 'include'
     })
-
-  console.log('apiRequest', method, path, 'body=', options.body)
 
   let response = await send()
 

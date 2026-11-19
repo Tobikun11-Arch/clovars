@@ -26,6 +26,14 @@ export const projectRepository = {
     return ProjectModel.find(filter).sort({name: 1}).exec();
   },
 
+  /** Id and name only, as plain objects: for labelling time entries. */
+  findNamesByWorkspace: (
+    workspaceId: string
+  ): Promise<Array<{_id: unknown; name: string}>> =>
+    ProjectModel.find({workspaceId}, {name: 1}).lean().exec() as Promise<
+      Array<{_id: unknown; name: string}>
+    >,
+
   findByNameInWorkspace: (
     workspaceId: string,
     name: string

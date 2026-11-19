@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
-import { fetchProjects } from '../../api/work'
 import { fetchTimeEntries } from '../../api/time'
-import { fetchMembers } from '../../api/workspaces'
-import type { Project } from '../../types/work'
+import { useQuery } from '../../lib/queryCache'
+import { useElapsedSeconds } from '../../hooks/useRunningTimer'
+import { useMembers, useProjects, workspaceKeys } from '../../hooks/useWorkspaceData'
 import type { TimeEntry } from '../../types/time'
 import type { WorkspaceMember } from '../../types/workspace'
 import { formatDateTime, formatDuration, formatDurationShort } from '../../utils/time'
@@ -24,8 +23,9 @@ import { Icon, icons } from '../icons'
 
 interface DashboardSectionProps {
   running: TimeEntry | null
-  runningElapsedSeconds: number
 }
+
+const EMPTY_LIST: never[] = []
 
 function startOfWeek(date: Date, weekStartsOn: number): Date {
   const d = new Date(date)
@@ -49,61 +49,29 @@ function memberLabel(member: WorkspaceMember): string {
   return name || member.email
 }
 
-export function DashboardSection({
-  running,
-  runningElapsedSeconds
-}: DashboardSectionProps): React.JSX.Element {
+export function DashboardSection({ running }: DashboardSectionProps): React.JSX.Element {
   const { activeWorkspace, activeId } = useWorkspace()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [entries, setEntries] = useState<TimeEntry[]>([])
-  const [members, setMembers] = useState<WorkspaceMember[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
-
   const role = activeWorkspace?.role
   const isAdmin = role === 'admin' || role === 'owner'
+  const runningElapsedSeconds = useElapsedSeconds(running)
 
-  useEffect(() => {
-    if (!activeId) return
-    const ws = activeId
-    let cancelled = false
+  // Shared caches: shown at once when coming back, refreshed in the background.
+  const projectsQuery = useProjects(activeId)
+  const entriesQuery = useQuery(activeId ? `${workspaceKeys.entries(activeId)}:dashboard` : null, () =>
+    fetchTimeEntries(activeId!)
+  )
+  // The member list is a nice-to-have; the dashboard still works without it.
+  const members = useMembers(activeId, isAdmin).data ?? EMPTY_LIST
+  const projects = projectsQuery.data ?? EMPTY_LIST
+  const entries = entriesQuery.data ?? EMPTY_LIST
+  const loading = projectsQuery.loading || entriesQuery.loading
+  const error =
+    (!projectsQuery.data && projectsQuery.error) || (!entriesQuery.data && entriesQuery.error) || null
 
-    async function load(): Promise<void> {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const [nextProjects, nextEntries] = await Promise.all([
-          fetchProjects(ws),
-          fetchTimeEntries(ws)
-        ])
-        if (cancelled) return
-        setProjects(nextProjects)
-        setEntries(nextEntries)
-
-        if (isAdmin) {
-          try {
-            const memberList = await fetchMembers(ws)
-            if (!cancelled) setMembers(memberList)
-          } catch {
-            /* Member list is a nice-to-have; the dashboard still works without it. */
-          }
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not load dashboard')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [activeId, isAdmin, reloadKey])
+  function retry(): void {
+    if (!projectsQuery.data) projectsQuery.refresh().catch(() => {})
+    if (!entriesQuery.data) entriesQuery.refresh().catch(() => {})
+  }
 
   const now = new Date()
   const weekStartsOn = localStorage.getItem('clovars.weekStart') === 'sunday' ? 0 : 1
@@ -207,7 +175,7 @@ export function DashboardSection({
       <ErrorState
         title="Could not load your dashboard"
         message={error}
-        onRetry={() => setReloadKey((key) => key + 1)}
+        onRetry={retry}
       />
     )
   }

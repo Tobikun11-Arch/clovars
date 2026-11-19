@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+﻿import { useState } from 'react'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import {
   createClient,
@@ -9,10 +9,6 @@ import {
   deleteProject,
   deleteTag,
   deleteTask,
-  fetchClients,
-  fetchProjects,
-  fetchTags,
-  fetchTasks,
   updateClient,
   updateProject,
   updateTag,
@@ -28,11 +24,21 @@ import type {
   Task,
   TaskInput
 } from '../../types/work'
+import {
+  invalidateEntries,
+  reloadWorkspaceData as reload,
+  useClients,
+  useProjects,
+  useTags,
+  useTasks
+} from '../../hooks/useWorkspaceData'
 import { ErrorState, Skeleton, showToast } from '../ui'
 import { ClientsPanel } from './ClientsPanel'
 import { ProjectsPanel } from './ProjectsPanel'
 import { TasksPanel } from './TasksPanel'
 import { TagsPanel } from './TagsPanel'
+
+const EMPTY_LIST: never[] = []
 
 export type WorkTab = 'clients' | 'projects' | 'tasks' | 'tags'
 
@@ -43,50 +49,23 @@ interface WorkSectionProps {
 
 export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.Element {
   const { activeId } = useWorkspace()
-  const [clients, setClients] = useState<Client[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [tags, setTags] = useState<Tag[]>([])
+  // Shared caches: other pages see changes made here, and coming back here
+  // shows the lists at once while they refresh in the background.
+  const queries = [useClients(activeId), useProjects(activeId), useTasks(activeId), useTags(activeId)] as const
+  const [clientsQuery, projectsQuery, tasksQuery, tagsQuery] = queries
+  const clients: Client[] = clientsQuery.data ?? EMPTY_LIST
+  const projects: Project[] = projectsQuery.data ?? EMPTY_LIST
+  const tasks: Task[] = tasksQuery.data ?? EMPTY_LIST
+  const tags: Tag[] = tagsQuery.data ?? EMPTY_LIST
   const [loading, setLoading] = useState(false)
-  const [pageLoading, setPageLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
+  const pageLoading = queries.some((query) => query.loading)
+  const loadError = queries.find((query) => !query.data && query.error)?.error ?? null
 
-  useEffect(() => {
-    if (!activeId) return
-    const workspaceId = activeId
-    let cancelled = false
-
-    async function load(): Promise<void> {
-      setPageLoading(true)
-      setLoadError(null)
-
-      try {
-        const [nextClients, nextProjects, nextTasks, nextTags] = await Promise.all([
-          fetchClients(workspaceId),
-          fetchProjects(workspaceId),
-          fetchTasks(workspaceId),
-          fetchTags(workspaceId)
-        ])
-        if (cancelled) return
-        setClients(nextClients)
-        setProjects(nextProjects)
-        setTasks(nextTasks)
-        setTags(nextTags)
-      } catch (err) {
-        if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : 'Could not load workspace data')
-        }
-      } finally {
-        if (!cancelled) setPageLoading(false)
-      }
+  function retry(): void {
+    for (const query of queries) {
+      if (!query.data) query.refresh().catch(() => {})
     }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [activeId, reloadKey])
+  }
 
   async function run(action: (workspaceId: string) => Promise<void>): Promise<void> {
     if (!activeId) return
@@ -103,7 +82,7 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleCreateClient(input: ClientInput): Promise<void> {
     await run(async (workspaceId) => {
       const client = await createClient(workspaceId, input)
-      setClients(await fetchClients(workspaceId))
+      await reload.clients(workspaceId)
       showToast(`Client "${client.name}" created.`, 'success')
     })
   }
@@ -111,7 +90,7 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleUpdateClient(client: Client, input: ClientInput): Promise<void> {
     await run(async (workspaceId) => {
       await updateClient(workspaceId, client.id, input)
-      setClients(await fetchClients(workspaceId))
+      await reload.clients(workspaceId)
       showToast(`Client "${input.name}" updated.`, 'success')
     })
   }
@@ -119,12 +98,7 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleDeleteClient(client: Client): Promise<void> {
     await run(async (workspaceId) => {
       await deleteClient(workspaceId, client.id)
-      const [nextClients, nextProjects] = await Promise.all([
-        fetchClients(workspaceId),
-        fetchProjects(workspaceId)
-      ])
-      setClients(nextClients)
-      setProjects(nextProjects)
+      await Promise.all([reload.clients(workspaceId), reload.projects(workspaceId)])
       showToast(`Client "${client.name}" deleted.`, 'success')
     })
   }
@@ -132,7 +106,7 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleCreateProject(input: ProjectInput): Promise<void> {
     await run(async (workspaceId) => {
       const project = await createProject(workspaceId, input)
-      setProjects(await fetchProjects(workspaceId))
+      await reload.projects(workspaceId)
       showToast(`Project "${project.name}" created.`, 'success')
     })
   }
@@ -140,7 +114,8 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleUpdateProject(project: Project, input: ProjectInput): Promise<void> {
     await run(async (workspaceId) => {
       await updateProject(workspaceId, project.id, input)
-      setProjects(await fetchProjects(workspaceId))
+      invalidateEntries(workspaceId)
+      await reload.projects(workspaceId)
       showToast(`Project "${input.name}" updated.`, 'success')
     })
   }
@@ -148,12 +123,8 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleDeleteProject(project: Project): Promise<void> {
     await run(async (workspaceId) => {
       await deleteProject(workspaceId, project.id)
-      const [nextProjects, nextTasks] = await Promise.all([
-        fetchProjects(workspaceId),
-        fetchTasks(workspaceId)
-      ])
-      setProjects(nextProjects)
-      setTasks(nextTasks)
+      invalidateEntries(workspaceId)
+      await Promise.all([reload.projects(workspaceId), reload.tasks(workspaceId)])
       showToast(`Project "${project.name}" and its tasks were deleted.`, 'success')
     })
   }
@@ -161,7 +132,7 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleCreateTask(input: TaskInput): Promise<void> {
     await run(async (workspaceId) => {
       const task = await createTask(workspaceId, input)
-      setTasks(await fetchTasks(workspaceId))
+      await reload.tasks(workspaceId)
       showToast(`Task "${task.name}" created.`, 'success')
     })
   }
@@ -169,7 +140,8 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleUpdateTask(task: Task, input: TaskInput): Promise<void> {
     await run(async (workspaceId) => {
       await updateTask(workspaceId, task.id, input)
-      setTasks(await fetchTasks(workspaceId))
+      invalidateEntries(workspaceId)
+      await reload.tasks(workspaceId)
       showToast(`Task "${input.name}" updated.`, 'success')
     })
   }
@@ -177,7 +149,8 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleDeleteTask(task: Task): Promise<void> {
     await run(async (workspaceId) => {
       await deleteTask(workspaceId, task.id)
-      setTasks(await fetchTasks(workspaceId))
+      invalidateEntries(workspaceId)
+      await reload.tasks(workspaceId)
       showToast(`Task "${task.name}" deleted.`, 'success')
     })
   }
@@ -185,7 +158,7 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleCreateTag(input: TagInput): Promise<void> {
     await run(async (workspaceId) => {
       const tag = await createTag(workspaceId, input)
-      setTags(await fetchTags(workspaceId))
+      await reload.tags(workspaceId)
       showToast(`Tag "${tag.name}" created.`, 'success')
     })
   }
@@ -193,7 +166,8 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleUpdateTag(tag: Tag, input: TagInput): Promise<void> {
     await run(async (workspaceId) => {
       await updateTag(workspaceId, tag.id, input)
-      setTags(await fetchTags(workspaceId))
+      invalidateEntries(workspaceId)
+      await reload.tags(workspaceId)
       showToast(`Tag "${input.name}" updated.`, 'success')
     })
   }
@@ -201,7 +175,8 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
   async function handleDeleteTag(tag: Tag): Promise<void> {
     await run(async (workspaceId) => {
       await deleteTag(workspaceId, tag.id)
-      setTags(await fetchTags(workspaceId))
+      invalidateEntries(workspaceId)
+      await reload.tags(workspaceId)
       showToast(`Tag "${tag.name}" deleted.`, 'success')
     })
   }
@@ -211,7 +186,7 @@ export function WorkSection({ tab, onNavigate }: WorkSectionProps): React.JSX.El
       <ErrorState
         title="Could not load work data"
         message={loadError}
-        onRetry={() => setReloadKey((key) => key + 1)}
+        onRetry={retry}
       />
     )
   }

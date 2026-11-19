@@ -42,6 +42,10 @@ beforeEach(() => {
   jest.spyOn(projectRepository, 'findByWorkspace').mockResolvedValue([]);
   jest.spyOn(taskRepository, 'findByWorkspace').mockResolvedValue([]);
   jest.spyOn(tagRepository, 'findByWorkspace').mockResolvedValue([]);
+  // buildLookup reads just ids and names.
+  jest.spyOn(projectRepository, 'findNamesByWorkspace').mockResolvedValue([]);
+  jest.spyOn(taskRepository, 'findNamesByWorkspace').mockResolvedValue([]);
+  jest.spyOn(tagRepository, 'findLabelsByWorkspace').mockResolvedValue([]);
 });
 
 afterEach(() => jest.restoreAllMocks());

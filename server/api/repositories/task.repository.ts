@@ -16,6 +16,14 @@ export const taskRepository = {
   ): Promise<TaskDocument | null> =>
     TaskModel.findOne({_id: id, workspaceId}).exec(),
 
+  /** Id and name only, as plain objects: for labelling time entries. */
+  findNamesByWorkspace: (
+    workspaceId: string
+  ): Promise<Array<{_id: unknown; name: string}>> =>
+    TaskModel.find({workspaceId}, {name: 1}).lean().exec() as Promise<
+      Array<{_id: unknown; name: string}>
+    >,
+
   findByWorkspace: (
     workspaceId: string,
     projectId?: string
