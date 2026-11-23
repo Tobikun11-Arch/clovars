@@ -21,6 +21,7 @@ import { MiniTimer } from './components/time/MiniTimer'
 import { ReportsSection } from './components/reports/ReportsSection'
 import { ProfileSection } from './components/profile/ProfileSection'
 import { DashboardSection } from './components/dashboard/DashboardSection'
+import { UpdateModal } from './components/UpdateModal'
 import { useRunningTimer } from './hooks/useRunningTimer'
 import {
   Button,
@@ -496,6 +497,12 @@ function App(): React.JSX.Element {
         )}
         <ToastContainer />
         <ConfirmHost />
+        <UpdateModal
+          timerRunning={Boolean(timer.running)}
+          onBeforeRestart={async () => {
+            if (timer.running) await timer.stop()
+          }}
+        />
       </WorkspaceProvider>
     </ErrorBoundary>
   )

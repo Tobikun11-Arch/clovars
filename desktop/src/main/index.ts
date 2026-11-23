@@ -564,6 +564,53 @@ function broadcastMainWindowState(): void {
   }
 }
 
+type UpdateInfoFields = { version: string; currentVersion: string; releaseNotes: string | null }
+
+type UpdateStatus =
+  | { state: 'idle' }
+  | ({ state: 'available' } & UpdateInfoFields)
+  | ({ state: 'downloading'; percent: number } & UpdateInfoFields)
+  | ({ state: 'downloaded' } & UpdateInfoFields)
+  | ({ state: 'error'; message: string } & UpdateInfoFields)
+
+let updateStatus: UpdateStatus = { state: 'idle' }
+
+// Kept in main so a renderer that loads after the check finishes can still ask for it.
+function setUpdateStatus(next: UpdateStatus): void {
+  updateStatus = next
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('updater:status', updateStatus)
+  }
+}
+
+function formatReleaseNotes(notes: unknown): string | null {
+  const raw = Array.isArray(notes)
+    ? notes
+        .map((entry) =>
+          entry && typeof entry === 'object' && 'note' in entry ? String(entry.note ?? '') : ''
+        )
+        .join('\n')
+    : typeof notes === 'string'
+      ? notes
+      : ''
+
+  // GitHub release notes arrive as HTML; show them as plain text.
+  const text = raw
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|li|h[1-6])>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  return text || null
+}
+
 function isValidTimerState(value: unknown): value is TimerState {
   if (!value || typeof value !== 'object') return false
 
@@ -631,9 +678,10 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.clovars.desktop')
 
-  // Configure auto-updater (GitHub releases auto-detect from electron-builder/app-update.yml)
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
+  // Configure auto-updater (GitHub releases auto-detect from electron-builder/app-update.yml).
+  // Nothing downloads or installs until the user says so in the update modal.
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
 
   autoUpdater.on('checking-for-update', () => {
     console.log('Checking for update...')
@@ -641,25 +689,80 @@ app.whenReady().then(() => {
 
   autoUpdater.on('update-available', (info) => {
     console.log('Update available:', info.version)
+    setUpdateStatus({
+      state: 'available',
+      version: info.version,
+      currentVersion: app.getVersion(),
+      releaseNotes: formatReleaseNotes(info.releaseNotes)
+    })
   })
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('No update available. Current version:', info.version)
   })
 
+  autoUpdater.on('download-progress', (progress) => {
+    if (updateStatus.state !== 'downloading') return
+    setUpdateStatus({ ...updateStatus, percent: Math.round(progress.percent) })
+  })
+
   autoUpdater.on('error', (error) => {
     console.error('Auto-updater error:', error)
+    // Only surface errors for a download the user asked for; a failed
+    // background check stays quiet.
+    if (updateStatus.state === 'downloading') {
+      setUpdateStatus({
+        state: 'error',
+        version: updateStatus.version,
+        currentVersion: updateStatus.currentVersion,
+        releaseNotes: updateStatus.releaseNotes,
+        message: error?.message ?? 'The update could not be downloaded.'
+      })
+    }
   })
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('Update downloaded:', info.version)
-    // Installed automatically on next app quit (autoInstallOnAppQuit).
-    // You can also prompt the user and call autoUpdater.quitAndInstall().
+    setUpdateStatus({
+      state: 'downloaded',
+      version: info.version,
+      currentVersion: app.getVersion(),
+      releaseNotes: formatReleaseNotes(info.releaseNotes)
+    })
+  })
+
+  ipcMain.handle('updater:get-status', () => updateStatus)
+
+  ipcMain.on('updater:download', () => {
+    if (updateStatus.state !== 'available' && updateStatus.state !== 'error') return
+    setUpdateStatus({
+      state: 'downloading',
+      version: updateStatus.version,
+      currentVersion: updateStatus.currentVersion,
+      releaseNotes: updateStatus.releaseNotes,
+      percent: 0
+    })
+    autoUpdater.downloadUpdate().catch((error) => {
+      console.error('Update download failed:', error)
+    })
+  })
+
+  ipcMain.on('updater:install', () => {
+    if (updateStatus.state !== 'downloaded') return
+    isQuitting = true
+    autoUpdater.quitAndInstall()
+  })
+
+  // "Later" on a downloaded update: install it the next time Clovars quits.
+  ipcMain.on('updater:install-on-quit', () => {
+    if (updateStatus.state === 'downloaded') autoUpdater.autoInstallOnAppQuit = true
   })
 
   // electron-updater only works in packaged builds.
   if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify()
+    autoUpdater.checkForUpdates().catch((error) => {
+      console.error('Update check failed:', error)
+    })
   } else {
     console.log('Skipping auto-update check in development')
   }

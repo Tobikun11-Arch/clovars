@@ -144,6 +144,28 @@ const api = {
       ipcRenderer.removeListener('mini-timer:resized', listener)
     }
   },
+  // App updates
+  getUpdateStatus: (): Promise<unknown> => {
+    return ipcRenderer.invoke('updater:get-status')
+  },
+  onUpdateStatus: (callback: (status: unknown) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void => {
+      callback(args[0])
+    }
+    ipcRenderer.on('updater:status', listener)
+    return () => {
+      ipcRenderer.removeListener('updater:status', listener)
+    }
+  },
+  downloadUpdate: (): void => {
+    ipcRenderer.send('updater:download')
+  },
+  installUpdate: (): void => {
+    ipcRenderer.send('updater:install')
+  },
+  installUpdateOnQuit: (): void => {
+    ipcRenderer.send('updater:install-on-quit')
+  },
   showToast: (message: string, type: 'info' | 'success' | 'error' = 'info'): void => {
     ipcRenderer.send('toast:show', { message, type })
   },

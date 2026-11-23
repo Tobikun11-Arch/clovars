@@ -1625,6 +1625,30 @@ body {
   color: var(--text-muted);
 }
 
+.update-modal__notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  background: var(--surface-2, var(--surface));
+  font-size: var(--fs-sm);
+}
+
+.update-modal__notes-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.update-modal__notes p {
+  margin: 0;
+  white-space: pre-line;
+  color: var(--text-muted);
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

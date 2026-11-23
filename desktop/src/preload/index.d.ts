@@ -20,6 +20,15 @@ export type TimerState = {
   workspaceName: string | null
 }
 
+type UpdateInfoFields = { version: string; currentVersion: string; releaseNotes: string | null }
+
+export type UpdateStatus =
+  | { state: 'idle' }
+  | ({ state: 'available' } & UpdateInfoFields)
+  | ({ state: 'downloading'; percent: number } & UpdateInfoFields)
+  | ({ state: 'downloaded' } & UpdateInfoFields)
+  | ({ state: 'error'; message: string } & UpdateInfoFields)
+
 export interface ClovarsApi {
   onTimerCommand: (callback: (command: TimerCommand) => void) => () => void
   updateTimerState: (state: TimerState) => void
@@ -43,6 +52,12 @@ export interface ClovarsApi {
   // Window state
   onMainWindowState: (callback: (state: { minimized: boolean; visible: boolean; focused: boolean }) => void) => () => void
   onMiniTimerResized: (callback: (size: { width: number; height: number }) => void) => () => void
+  // App updates
+  getUpdateStatus: () => Promise<UpdateStatus>
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
+  downloadUpdate: () => void
+  installUpdate: () => void
+  installUpdateOnQuit: () => void
   showToast: (message: string, type?: 'info' | 'success' | 'error') => void
   on: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void) => void
   removeListener: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void) => void
