@@ -483,10 +483,6 @@ body {
   z-index: var(--z-topbar);
 }
 
-.topbar__menu {
-  display: none;
-}
-
 .topbar__titles {
   display: flex;
   flex-direction: column;
@@ -2492,10 +2488,6 @@ kbd {
   .shell__backdrop.is-open {
     opacity: 1;
     pointer-events: auto;
-  }
-
-  .topbar__menu {
-    display: inline-flex;
   }
 
   .topbar__crumb {

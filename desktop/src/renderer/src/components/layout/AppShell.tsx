@@ -333,12 +333,13 @@ export function AppShell({
 
       <div className="shell__main">
         <header className="topbar">
-          <IconButton
-            label="Open navigation"
-            icon={<Icon d={icons.menu} />}
-            className="topbar__menu"
-            onClick={() => setMobileOpen(true)}
-          />
+          {isMobile && (
+            <IconButton
+              label="Open navigation"
+              icon={<Icon d={icons.menu} />}
+              onClick={() => setMobileOpen(true)}
+            />
+          )}
           <div className="topbar__titles">
             {meta.group && <span className="topbar__crumb">{meta.group}</span>}
             <h1 className="topbar__title">{meta.title}</h1>
