@@ -462,22 +462,25 @@ function setMiniTimerMode(mode: MiniTimerMode): void {
     win.setResizable(false)
     win.setMinimumSize(MINI_ICON_SIZE, MINI_ICON_SIZE)
     win.setMaximumSize(MINI_ICON_SIZE, MINI_ICON_SIZE)
-    win.setSize(MINI_ICON_SIZE, MINI_ICON_SIZE)
     // Keep the icon where the widget's top-right corner was, so it shrinks
     // toward the corner people usually park it in.
-    win.setPosition(Math.round(x + currentWidth - MINI_ICON_SIZE), y)
+    win.setBounds({
+      x: Math.round(x + currentWidth - MINI_ICON_SIZE),
+      y,
+      width: MINI_ICON_SIZE,
+      height: MINI_ICON_SIZE
+    })
   } else {
     const { width, height } = miniTimerFullSize
     win.setMaximumSize(MINI_FULL_MAX.width, MINI_FULL_MAX.height)
     win.setMinimumSize(MINI_FULL_MIN.width, MINI_FULL_MIN.height)
     win.setResizable(true)
-    win.setSize(width, height)
 
     // Grow from the icon's top-right corner and stay inside the screen.
     const area = screen.getDisplayNearestPoint({ x, y }).workArea
     const nextX = Math.max(area.x, Math.min(x + currentWidth - width, area.x + area.width - width))
     const nextY = Math.max(area.y, Math.min(y, area.y + area.height - height))
-    win.setPosition(Math.round(nextX), Math.round(nextY))
+    win.setBounds({ x: Math.round(nextX), y: Math.round(nextY), width, height })
   }
 
   const [px, py] = win.getPosition()
@@ -873,7 +876,13 @@ app.whenReady().then(() => {
     ) {
       const x = Math.round(position.x)
       const y = Math.round(position.y)
-      miniTimerWindow.setPosition(x, y)
+      // setBounds with a fixed size, not setPosition: on Windows at fractional
+      // display scaling (125%/150% laptops) setPosition grows the window ~1px per move.
+      const { width, height } =
+        miniTimerMode === 'icon'
+          ? { width: MINI_ICON_SIZE, height: MINI_ICON_SIZE }
+          : miniTimerFullSize
+      miniTimerWindow.setBounds({ x, y, width, height })
       miniTimerPosition = { x, y }
     }
   })

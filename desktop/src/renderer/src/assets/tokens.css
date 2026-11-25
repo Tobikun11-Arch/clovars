@@ -10,12 +10,13 @@
 
   /* Text */
   --text: #111827;
-  --text-muted: #6b7280;
-  --text-subtle: #9ca3af;
+  /* Text tokens all clear WCAG AA 4.5:1 on --surface and --bg. */
+  --text-muted: #4b5563;
+  --text-subtle: #6b7280;
 
-  /* Brand */
-  --primary: #0ea5e9;
-  --primary-hover: #0284c7;
+  /* Brand: sky-700, so white button text and links on white reach 4.5:1 (sky-500 was 2.8:1). */
+  --primary: #0369a1;
+  --primary-hover: #075985;
   --primary-soft: #e0f2fe;
   --on-primary: #ffffff;
 

@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react'
+﻿import { useId, useRef, useState } from 'react'
 import type {
   ChangePasswordPayload,
   ForgotPasswordPayload,
@@ -301,11 +301,18 @@ const CODE_LENGTH = 6
 interface CodeInputProps {
   value: string
   onChange: (value: string) => void
-  disabled?: boolean
+  labelledBy: string
+  invalid?: boolean
   autoFocus?: boolean
 }
 
-function CodeInput({ value, onChange, disabled, autoFocus }: CodeInputProps): React.JSX.Element {
+function CodeInput({
+  value,
+  onChange,
+  labelledBy,
+  invalid,
+  autoFocus
+}: CodeInputProps): React.JSX.Element {
   const refs = useRef<Array<HTMLInputElement | null>>([])
   const digits = Array.from({ length: CODE_LENGTH }, (_, i) => value[i] ?? '')
 
@@ -361,7 +368,7 @@ function CodeInput({ value, onChange, disabled, autoFocus }: CodeInputProps): Re
   }
 
   return (
-    <div className="code-input" role="group" aria-label="Reset code">
+    <div className="code-input" role="group" aria-labelledby={labelledBy}>
       {digits.map((digit, index) => (
         <input
           key={index}
@@ -373,7 +380,7 @@ function CodeInput({ value, onChange, disabled, autoFocus }: CodeInputProps): Re
           inputMode="numeric"
           autoComplete={index === 0 ? 'one-time-code' : 'off'}
           maxLength={CODE_LENGTH}
-          disabled={disabled}
+          aria-invalid={invalid || undefined}
           autoFocus={autoFocus && index === 0}
           aria-label={`Digit ${index + 1}`}
           onFocus={(event) => event.target.select()}
@@ -403,9 +410,11 @@ export function ResetCodeForm({
 }: ResetCodeFormProps): React.JSX.Element {
   const [code, setCode] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
+  const labelId = useId()
 
   function handleSubmit(event: React.FormEvent): void {
     event.preventDefault()
+    if (loading) return
 
     if (code.length !== CODE_LENGTH) {
       setFieldError(`Enter the ${CODE_LENGTH}-digit code from your email.`)
@@ -420,8 +429,17 @@ export function ResetCodeForm({
     <form className="auth-form" onSubmit={handleSubmit} noValidate>
       <AuthError error={error ?? fieldError} />
       <div className="field">
-        <span className="field__label">Reset code</span>
-        <CodeInput value={code} onChange={setCode} disabled={loading} autoFocus />
+        <span className="field__label" id={labelId}>
+          Reset code
+        </span>
+        {/* Not disabled while verifying: disabling drops focus, stranding keyboard users after a wrong code. */}
+        <CodeInput
+          value={code}
+          onChange={setCode}
+          labelledBy={labelId}
+          invalid={Boolean(error ?? fieldError)}
+          autoFocus
+        />
       </div>
       <Button variant="primary" type="submit" block loading={loading}>
         Verify code
