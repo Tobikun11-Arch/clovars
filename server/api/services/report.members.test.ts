@@ -4,7 +4,7 @@ import {workspaceRepository} from '../repositories/workspace.repository';
 import {projectRepository} from '../repositories/project.repository';
 import {taskRepository} from '../repositories/task.repository';
 import {tagRepository} from '../repositories/tag.repository';
-import {reportService} from './report.service';
+import {reportRange, reportService} from './report.service';
 import type {ReportQuery} from '../dtos/report.dto';
 
 const HOUR = 3600;
@@ -83,5 +83,20 @@ describe('report member breakdown', () => {
       groupBy: 'member'
     } as ReportQuery);
     expect(report.groups.every((group) => group.members.length === 0)).toBe(true);
+  });
+});
+
+describe('report date range', () => {
+  it('covers the whole local day for a one-day range', () => {
+    // UTC+8 (getTimezoneOffset = -480): Nov 26 local runs 25th 16:00Z to 26th 15:59:59.999Z.
+    const {from, to} = reportRange({from: '2026-11-26', to: '2026-11-26', timezoneOffset: -480});
+    expect(from?.toISOString()).toBe('2026-11-25T16:00:00.000Z');
+    expect(to?.toISOString()).toBe('2026-11-26T15:59:59.999Z');
+  });
+
+  it('uses full timestamps as given', () => {
+    const {from, to} = reportRange({from: '2026-11-26T05:00:00.000Z', timezoneOffset: -480});
+    expect(from?.toISOString()).toBe('2026-11-26T05:00:00.000Z');
+    expect(to).toBeUndefined();
   });
 });

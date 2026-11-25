@@ -88,6 +88,26 @@ function formatLocalDateTime(date: Date, offsetMinutes = 0): string {
   return local.toISOString().slice(0, 19).replace('T', ' ');
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A plain date (YYYY-MM-DD) means that whole day in the user's time zone:
+ * from = its local midnight, to = the last millisecond of that day.
+ * Full timestamps are used as given.
+ */
+export function reportRange(
+  filters: Pick<ReportQuery, 'from' | 'to' | 'timezoneOffset'>
+): {from?: Date; to?: Date} {
+  const offsetMs = (filters.timezoneOffset ?? 0) * 60 * 1000;
+  const bound = (value: string | undefined, endOfDay: boolean): Date | undefined => {
+    if (!value) return undefined;
+    if (!DATE_ONLY.test(value)) return new Date(value);
+    return new Date(Date.parse(value) + offsetMs + (endOfDay ? DAY_MS - 1 : 0));
+  };
+  return {from: bound(filters.from, false), to: bound(filters.to, true)};
+}
+
 function groupKey(
   entry: {userId: string; projectId?: string | null; startTime: Date},
   groupBy: ReportQuery['groupBy'],
@@ -143,8 +163,7 @@ export const reportService = {
       userId: targetUserId,
       projectId: filters.projectId,
       tagId: filters.tagId,
-      from: filters.from ? new Date(filters.from) : undefined,
-      to: filters.to ? new Date(filters.to) : undefined,
+      ...reportRange(filters),
       limit: filters.limit
     });
 
@@ -370,8 +389,7 @@ export const reportService = {
       userId: targetUserId,
       projectId: filters.projectId,
       tagId: filters.tagId,
-      from: filters.from ? new Date(filters.from) : undefined,
-      to: filters.to ? new Date(filters.to) : undefined,
+      ...reportRange(filters),
       limit: filters.limit
     });
 

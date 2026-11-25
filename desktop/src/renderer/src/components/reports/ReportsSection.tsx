@@ -25,9 +25,10 @@ import { Icon, icons } from '../icons'
 
 const EMPTY_LIST: never[] = []
 
-type Preset = 'this-week' | 'last-week' | 'this-month' | 'last-month' | 'all-time'
+type Preset = 'today' | 'this-week' | 'last-week' | 'this-month' | 'last-month' | 'all-time'
 
 const PRESETS: Array<{ value: Preset; label: string }> = [
+  { value: 'today', label: 'Today' },
   { value: 'this-week', label: 'This week' },
   { value: 'last-week', label: 'Last week' },
   { value: 'this-month', label: 'This month' },
@@ -53,6 +54,10 @@ function startOfWeek(date: Date, weekStartsOn: number): Date {
 function presetRange(preset: Preset, weekStartsOn: number): { from: string; to: string } {
   const today = new Date()
   const weekStart = startOfWeek(today, weekStartsOn)
+
+  if (preset === 'today') {
+    return { from: toDateInput(today), to: toDateInput(today) }
+  }
 
   if (preset === 'this-week') {
     return { from: toDateInput(weekStart), to: toDateInput(today) }
@@ -105,7 +110,7 @@ export function ReportsSection(): React.JSX.Element {
   const [tagId, setTagId] = useState('')
   const [memberId, setMemberId] = useState('')
   const [groupBy, setGroupBy] = useState<ReportGroupBy>('date')
-  const [activePreset, setActivePreset] = useState<Preset | null>('this-week')
+  const [activePreset, setActivePreset] = useState<Preset | null>('today')
 
   const [report, setReport] = useState<ReportResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -115,20 +120,20 @@ export function ReportsSection(): React.JSX.Element {
 
   const isAdmin = activeWorkspace?.role === 'admin' || activeWorkspace?.role === 'owner'
 
-  // Load the current week automatically so the page never starts blank.
+  // Load today's report automatically so the page never starts blank.
   useEffect(() => {
     if (!activeId) return
     const workspaceId = activeId
     const handle = window.setTimeout(() => {
       const weekStartsOn = localStorage.getItem('clovars.weekStart') === 'sunday' ? 0 : 1
-      const range = presetRange('this-week', weekStartsOn)
+      const range = presetRange('today', weekStartsOn)
       setFrom(range.from)
       setTo(range.to)
       setProjectId('')
       setTagId('')
       setMemberId('')
       setGroupBy('date')
-      setActivePreset('this-week')
+      setActivePreset('today')
       void loadReport(workspaceId, range, true, true)
     }, 0)
     return () => window.clearTimeout(handle)
