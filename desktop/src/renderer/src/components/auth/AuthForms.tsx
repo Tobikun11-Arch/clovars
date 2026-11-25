@@ -1,10 +1,9 @@
-﻿import { useState } from 'react'
+﻿import { useRef, useState } from 'react'
 import type {
   ChangePasswordPayload,
   ForgotPasswordPayload,
   LoginPayload,
   RegisterPayload,
-  ResetPasswordPayload,
   VerifyPayload
 } from '../../types/auth'
 import { Button, Field, Input, PasswordInput, Stack } from '../ui'
@@ -297,21 +296,161 @@ export function ForgotForm({ onSubmit, loading, error }: ForgotFormProps): React
   )
 }
 
-interface ResetFormProps {
-  defaultEmail: string
-  onSubmit: (payload: ResetPasswordPayload) => void | Promise<void>
+const CODE_LENGTH = 6
+
+interface CodeInputProps {
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+  autoFocus?: boolean
+}
+
+function CodeInput({ value, onChange, disabled, autoFocus }: CodeInputProps): React.JSX.Element {
+  const refs = useRef<Array<HTMLInputElement | null>>([])
+  const digits = Array.from({ length: CODE_LENGTH }, (_, i) => value[i] ?? '')
+
+  function focusAt(index: number): void {
+    const target = refs.current[Math.max(0, Math.min(CODE_LENGTH - 1, index))]
+    target?.focus()
+    target?.select()
+  }
+
+  function setDigits(next: string[]): void {
+    onChange(next.join('').slice(0, CODE_LENGTH))
+  }
+
+  function handleChange(index: number, raw: string): void {
+    const cleaned = raw.replace(/\D/g, '')
+    if (!cleaned) return
+    const next = [...digits]
+    // Typing (or autofill) can deliver several digits at once — spread them forward.
+    for (let i = 0; i < cleaned.length && index + i < CODE_LENGTH; i++) {
+      next[index + i] = cleaned[i]
+    }
+    setDigits(next)
+    focusAt(index + cleaned.length)
+  }
+
+  function handleKeyDown(index: number, event: React.KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === 'Backspace') {
+      event.preventDefault()
+      const next = [...digits]
+      if (next[index]) {
+        next[index] = ''
+        setDigits(next)
+      } else if (index > 0) {
+        next[index - 1] = ''
+        setDigits(next)
+        focusAt(index - 1)
+      }
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      focusAt(index - 1)
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      focusAt(index + 1)
+    }
+  }
+
+  function handlePaste(event: React.ClipboardEvent<HTMLInputElement>): void {
+    const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, CODE_LENGTH)
+    if (!pasted) return
+    event.preventDefault()
+    onChange(pasted)
+    focusAt(pasted.length)
+  }
+
+  return (
+    <div className="code-input" role="group" aria-label="Reset code">
+      {digits.map((digit, index) => (
+        <input
+          key={index}
+          ref={(el) => {
+            refs.current[index] = el
+          }}
+          className="code-input__cell"
+          value={digit}
+          inputMode="numeric"
+          autoComplete={index === 0 ? 'one-time-code' : 'off'}
+          maxLength={CODE_LENGTH}
+          disabled={disabled}
+          autoFocus={autoFocus && index === 0}
+          aria-label={`Digit ${index + 1}`}
+          onFocus={(event) => event.target.select()}
+          onChange={(event) => handleChange(index, event.target.value)}
+          onKeyDown={(event) => handleKeyDown(index, event)}
+          onPaste={handlePaste}
+        />
+      ))}
+    </div>
+  )
+}
+
+interface ResetCodeFormProps {
+  onSubmit: (code: string) => void | Promise<void>
+  onResend: () => void | Promise<void>
+  onChangeEmail: () => void
   loading: boolean
   error?: string | null
 }
 
-export function ResetForm({
-  defaultEmail,
+export function ResetCodeForm({
+  onSubmit,
+  onResend,
+  onChangeEmail,
+  loading,
+  error
+}: ResetCodeFormProps): React.JSX.Element {
+  const [code, setCode] = useState('')
+  const [fieldError, setFieldError] = useState<string | null>(null)
+
+  function handleSubmit(event: React.FormEvent): void {
+    event.preventDefault()
+
+    if (code.length !== CODE_LENGTH) {
+      setFieldError(`Enter the ${CODE_LENGTH}-digit code from your email.`)
+      return
+    }
+
+    setFieldError(null)
+    void onSubmit(code)
+  }
+
+  return (
+    <form className="auth-form" onSubmit={handleSubmit} noValidate>
+      <AuthError error={error ?? fieldError} />
+      <div className="field">
+        <span className="field__label">Reset code</span>
+        <CodeInput value={code} onChange={setCode} disabled={loading} autoFocus />
+      </div>
+      <Button variant="primary" type="submit" block loading={loading}>
+        Verify code
+      </Button>
+      <p className="auth__hint">
+        Didn&apos;t get it?{' '}
+        <Button variant="link" disabled={loading} onClick={() => void onResend()}>
+          Resend code
+        </Button>
+        {' · '}
+        <Button variant="link" disabled={loading} onClick={onChangeEmail}>
+          Use a different email
+        </Button>
+      </p>
+    </form>
+  )
+}
+
+interface ResetPasswordFormProps {
+  onSubmit: (newPassword: string) => void | Promise<void>
+  loading: boolean
+  error?: string | null
+}
+
+export function ResetPasswordForm({
   onSubmit,
   loading,
   error
-}: ResetFormProps): React.JSX.Element {
-  const [email, setEmail] = useState(defaultEmail)
-  const [code, setCode] = useState('')
+}: ResetPasswordFormProps): React.JSX.Element {
   const [newPassword, setNewPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
@@ -319,14 +458,6 @@ export function ResetForm({
   function handleSubmit(event: React.FormEvent): void {
     event.preventDefault()
 
-    if (!isEmail(email)) {
-      setFieldError('Enter a valid email address.')
-      return
-    }
-    if (code.trim().length < 4) {
-      setFieldError('Enter the reset code from your email.')
-      return
-    }
     if (newPassword.length < 8) {
       setFieldError('Passwords need at least 8 characters.')
       return
@@ -337,34 +468,18 @@ export function ResetForm({
     }
 
     setFieldError(null)
-    void onSubmit({ email: email.trim(), code: code.trim(), newPassword })
+    void onSubmit(newPassword)
   }
 
   return (
     <form className="auth-form" onSubmit={handleSubmit} noValidate>
       <AuthError error={error ?? fieldError} />
       <Stack gap={4}>
-        <Field label="Email" required>
-          <Input
-            type="email"
-            value={email}
-            autoComplete="email"
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </Field>
-        <Field label="Reset code" required>
-          <Input
-            value={code}
-            inputMode="numeric"
-            maxLength={12}
-            className="input--code"
-            onChange={(event) => setCode(event.target.value)}
-          />
-        </Field>
         <Field label="New password" required hint="At least 8 characters.">
           <PasswordInput
             value={newPassword}
             autoComplete="new-password"
+            autoFocus
             onChange={(event) => setNewPassword(event.target.value)}
           />
         </Field>

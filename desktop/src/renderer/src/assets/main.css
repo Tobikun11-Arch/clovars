@@ -869,6 +869,43 @@ body {
   resize: vertical;
 }
 
+.code-input {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.code-input__cell {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 20px;
+  font-weight: var(--fw-medium);
+  text-align: center;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.code-input__cell:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.code-input__cell:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+
+.code-input__cell:disabled {
+  opacity: 0.6;
+}
+
 .checkbox {
   display: inline-flex;
   align-items: center;

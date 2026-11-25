@@ -12,7 +12,8 @@ import {
   RegisterForm,
   VerifyForm,
   ForgotForm,
-  ResetForm
+  ResetCodeForm,
+  ResetPasswordForm
 } from './components/auth/AuthForms'
 import { WorkspacesSection } from './components/workspaces/WorkspacesSection'
 import { WorkSection } from './components/work/WorkSection'
@@ -61,6 +62,8 @@ function App(): React.JSX.Element {
   const [authError, setAuthError] = useState<string | null>(null)
   const [verifyEmail, setVerifyEmail] = useState('')
   const [resetEmail, setResetEmail] = useState('')
+  // Set only after the server accepts the code; gates the new-password step.
+  const [resetCode, setResetCode] = useState('')
 
   const timer = useRunningTimer({
     enabled: Boolean(user) && !isMiniWindow,
@@ -246,6 +249,7 @@ function App(): React.JSX.Element {
         body: JSON.stringify(payload)
       })
       setResetEmail(payload.email)
+      setResetCode('')
       showToast('If that email exists, a reset code is on its way.', 'info')
       navigate('/reset')
     } catch (err) {
@@ -255,14 +259,56 @@ function App(): React.JSX.Element {
     }
   }
 
-  async function handleReset(payload: ResetPasswordPayload): Promise<void> {
+  async function handleVerifyResetCode(code: string): Promise<void> {
     setSubmitting(true)
     clearAuthError()
     try {
+      await apiRequest('/api/auth/verify-reset-code', {
+        method: 'POST',
+        body: JSON.stringify({ email: resetEmail, code })
+      })
+      setResetCode(code)
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Invalid or expired code')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleResendResetCode(): Promise<void> {
+    setSubmitting(true)
+    clearAuthError()
+    try {
+      await apiRequest('/api/auth/resend-reset-code', {
+        method: 'POST',
+        body: JSON.stringify({ email: resetEmail })
+      })
+      showToast('A new reset code is on its way.', 'success')
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Resend failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function restartReset(path: '/forgot' | '/login'): void {
+    clearAuthError()
+    setResetEmail('')
+    setResetCode('')
+    navigate(path)
+  }
+
+  async function handleReset(newPassword: string): Promise<void> {
+    setSubmitting(true)
+    clearAuthError()
+    try {
+      const payload: ResetPasswordPayload = { email: resetEmail, code: resetCode, newPassword }
       await apiRequest('/api/auth/reset-password', {
         method: 'POST',
         body: JSON.stringify(payload)
       })
+      setResetEmail('')
+      setResetCode('')
       showToast('Password reset. Sign in with your new password.', 'success')
       navigate('/login')
     } catch (err) {
@@ -341,7 +387,7 @@ function App(): React.JSX.Element {
       )
     }
 
-    if (path === '/forgot') {
+    if (path === '/forgot' || (path === '/reset' && !resetEmail)) {
       return (
         <AuthLayout
           title="Forgot your password?"
@@ -354,20 +400,34 @@ function App(): React.JSX.Element {
       )
     }
 
-    if (path === '/reset') {
+    if (path === '/reset' && !resetCode) {
       return (
         <AuthLayout
-          title="Reset your password"
-          subtitle="Enter the code from your email and choose a new password."
+          title="Enter reset code"
+          subtitle={`We sent a 6-digit code to ${resetEmail}.`}
           backLabel="Back to sign in"
-          onBack={() => navigate('/login')}
+          onBack={() => restartReset('/login')}
         >
-          <ResetForm
-            defaultEmail={resetEmail}
-            onSubmit={handleReset}
+          <ResetCodeForm
+            onSubmit={handleVerifyResetCode}
+            onResend={handleResendResetCode}
+            onChangeEmail={() => restartReset('/forgot')}
             loading={submitting}
             error={authError}
           />
+        </AuthLayout>
+      )
+    }
+
+    if (path === '/reset') {
+      return (
+        <AuthLayout
+          title="Set a new password"
+          subtitle={`Choose a new password for ${resetEmail}.`}
+          backLabel="Back to sign in"
+          onBack={() => restartReset('/login')}
+        >
+          <ResetPasswordForm onSubmit={handleReset} loading={submitting} error={authError} />
         </AuthLayout>
       )
     }
