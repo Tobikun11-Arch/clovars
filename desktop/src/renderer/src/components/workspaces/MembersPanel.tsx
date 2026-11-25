@@ -73,7 +73,7 @@ export function MembersPanel({
                       <tr key={member.id}>
                         <td>
                           <span className="cell-primary">
-                            <Avatar name={memberName(member)} size="sm" />
+                            <Avatar name={memberName(member)} src={member.avatarUrl} size="sm" />
                             <span className="cell-stack">
                               <span>
                                 {memberName(member)}

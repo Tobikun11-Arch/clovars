@@ -17,6 +17,9 @@ export const userRepository = {
   updateAvatar: (userId: string, avatar: string | null) =>
     UserModel.updateOne({_id: userId}, {$set: {avatar}}).exec(),
 
+  findAvatarsByIds: (ids: string[]) =>
+    UserModel.find({_id: {$in: ids}}).select('+avatar').lean().exec(),
+
   listAll: () => UserModel.find({}).exec(),
 
   create: (data: Partial<UserDocument>) => UserModel.create(data),

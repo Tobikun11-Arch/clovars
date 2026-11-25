@@ -1,5 +1,6 @@
 import {workspaceRepository} from '../repositories/workspace.repository';
 import {membershipRepository} from '../repositories/membership.repository';
+import {userRepository} from '../repositories/user.repository';
 import {inviteRepository} from '../repositories/invite.repository';
 import {clientRepository} from '../repositories/client.repository';
 import {projectRepository} from '../repositories/project.repository';
@@ -151,7 +152,14 @@ export const workspaceService = {
 
   async listMembers(workspaceId: string) {
     const memberships = await membershipRepository.findByWorkspace(workspaceId);
-    return memberships.map(toMemberDto);
+    const users = await userRepository.findAvatarsByIds(
+      memberships.map(membership => membership.userId)
+    );
+    const avatars = new Map(users.map(user => [String(user._id), user.avatar ?? null]));
+    return memberships.map(membership => ({
+      ...toMemberDto(membership),
+      avatarUrl: avatars.get(membership.userId) ?? null
+    }));
   },
 
   async updateMemberRole(

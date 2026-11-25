@@ -16,6 +16,7 @@ export interface WorkspaceMember {
   lastName: string | null
   role: WorkspaceRole
   joinedAt?: string
+  avatarUrl?: string | null
 }
 
 export interface Invite {

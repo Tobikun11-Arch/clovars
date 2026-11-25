@@ -8,7 +8,8 @@ import {
   nativeImage,
   screen,
   globalShortcut,
-  dialog
+  dialog,
+  powerMonitor
 } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { MenuItemConstructorOptions } from 'electron'
@@ -57,6 +58,7 @@ const MINI_ICON_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
   '.gif': 'image/gif'
 }
+const IDLE_LIMIT_SECONDS = 10 * 60
 let miniTimerMode: MiniTimerMode = 'full'
 let miniTimerFullSize = { ...MINI_FULL_DEFAULT }
 let timerState: TimerState = {
@@ -261,6 +263,21 @@ function createTray(): void {
   setInterval(() => {
     if (timerState.running) updateTray()
   }, 1000)
+
+  // Pause a running timer after IDLE_LIMIT_SECONDS with no mouse/keyboard input,
+  // backdated to the last input so idle time is not tracked. Fires once per idle stretch.
+  let idleSent = false
+  setInterval(() => {
+    const idleSeconds = powerMonitor.getSystemIdleTime()
+    if (idleSeconds < IDLE_LIMIT_SECONDS) {
+      idleSent = false
+      return
+    }
+    if (idleSent || !timerState.running || timerState.isPaused) return
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    idleSent = true
+    mainWindow.webContents.send('timer:idle', new Date(Date.now() - idleSeconds * 1000).toISOString())
+  }, 15_000)
 }
 
 function createWindow(): void {

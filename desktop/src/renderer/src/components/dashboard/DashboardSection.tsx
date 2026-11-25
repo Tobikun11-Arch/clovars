@@ -336,7 +336,7 @@ export function DashboardSection({ running }: DashboardSectionProps): React.JSX.
               {members.map((member) => (
                 <div key={member.id} className="row-between">
                   <span className="cell-primary">
-                    <Avatar name={memberLabel(member)} size="sm" />
+                    <Avatar name={memberLabel(member)} src={member.avatarUrl} size="sm" />
                     {memberLabel(member)}
                   </span>
                   <Badge

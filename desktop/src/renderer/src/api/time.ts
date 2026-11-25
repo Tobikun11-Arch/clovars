@@ -109,12 +109,12 @@ export async function stopTimer(workspaceId: string): Promise<TimeEntry> {
   return response.entry
 }
 
-export async function pauseTimer(workspaceId: string): Promise<TimeEntry> {
+export async function pauseTimer(workspaceId: string, pausedAt?: string): Promise<TimeEntry> {
   const response = await apiRequest<{ entry: TimeEntry }>(
     `/api/workspaces/${workspaceId}/time-entries/pause`,
     {
       method: 'POST',
-      body: JSON.stringify({})
+      body: JSON.stringify(pausedAt ? { pausedAt } : {})
     }
   )
 

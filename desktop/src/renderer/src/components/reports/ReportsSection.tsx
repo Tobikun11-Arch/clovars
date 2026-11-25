@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
 import { fetchReport, exportReportCsv, exportDetailedReportCsv } from '../../api/reports'
 import { fetchQuery, isQueryFresh, peekQuery } from '../../lib/queryCache'
@@ -90,6 +90,10 @@ export function ReportsSection(): React.JSX.Element {
   const projects = projectsQuery.data ?? EMPTY_LIST
   const tags = tagsQuery.data ?? EMPTY_LIST
   const members = membersQuery.data ?? EMPTY_LIST
+  const avatarByUserId = useMemo(
+    () => new Map(members.map((member) => [member.userId, member.avatarUrl])),
+    [members]
+  )
   const optionsError = [projectsQuery, tagsQuery, membersQuery].some(
     (query) => !query.data && query.error
   )
@@ -480,7 +484,11 @@ export function ReportsSection(): React.JSX.Element {
                             <tr key={`${group.key}:${member.userId}`} className="report-member-row">
                               <td colSpan={showGroupColumn ? 2 : 1}>
                                 <span className="report-member">
-                                  <Avatar name={member.name} size="sm" />
+                                  <Avatar
+                                    name={member.name}
+                                    src={avatarByUserId.get(member.userId)}
+                                    size="sm"
+                                  />
                                   <span className="report-member__name">{member.name}</span>
                                 </span>
                               </td>

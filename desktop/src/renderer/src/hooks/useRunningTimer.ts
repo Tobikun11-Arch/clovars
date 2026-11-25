@@ -74,7 +74,8 @@ export interface UseRunningTimerResult {
   applyRunning: (entry: TimeEntry | null) => void
   refresh: () => Promise<void>
   startQuickTimer: () => Promise<void>
-  pause: () => Promise<void>
+  /** Resolves true when the timer was paused. `pausedAt` backdates the pause (ISO time). */
+  pause: (pausedAt?: string) => Promise<boolean>
   resume: () => Promise<void>
   stop: () => Promise<void>
   clear: () => void
@@ -201,21 +202,26 @@ export function useRunningTimer({
     }
   }, [running, applyRunning, onError])
 
-  const pause = useCallback(async (): Promise<void> => {
-    if (!running || running.isPaused || busyRef.current) return
+  const pause = useCallback(
+    async (pausedAt?: string): Promise<boolean> => {
+      if (!running || running.isPaused || busyRef.current) return false
 
-    busyRef.current = true
+      busyRef.current = true
 
-    try {
-      const entry = await pauseTimer(running.workspaceId)
-      applyRunning(entry)
-      onError(null)
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Could not pause the timer')
-    } finally {
-      busyRef.current = false
-    }
-  }, [running, applyRunning, onError])
+      try {
+        const entry = await pauseTimer(running.workspaceId, pausedAt)
+        applyRunning(entry)
+        onError(null)
+        return true
+      } catch (err) {
+        onError(err instanceof Error ? err.message : 'Could not pause the timer')
+        return false
+      } finally {
+        busyRef.current = false
+      }
+    },
+    [running, applyRunning, onError]
+  )
 
   const resume = useCallback(async (): Promise<void> => {
     if (!running || !running.isPaused || busyRef.current) return
@@ -270,6 +276,26 @@ export function useRunningTimer({
 
     return unsubscribe
   }, [enabled, startQuickTimer, pause, resume, stop])
+
+  // Main process reports 10 minutes without input; pause from the last input.
+  useEffect(() => {
+    if (!enabled || !window.api?.on) return
+
+    const listener = (_event: unknown, ...args: unknown[]): void => {
+      const idleSince = String(args[0])
+      void pause(idleSince).then((paused) => {
+        if (!paused) return
+        const time = new Date(idleSince).toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit'
+        })
+        showToast(`Timer paused: no activity since ${time}. Idle time was not tracked.`, 'info')
+      })
+    }
+
+    window.api.on('timer:idle', listener)
+    return () => window.api?.removeListener('timer:idle', listener)
+  }, [enabled, pause])
 
   // While the app is open, ask the server as soon as the 24-hour mark is hit
   // instead of waiting up to 30 seconds for the next poll. Once per entry.
