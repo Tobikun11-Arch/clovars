@@ -476,7 +476,22 @@ export function ReportsSection(): React.JSX.Element {
                                   : ''}
                               </span>
                             </td>
-                            {showGroupColumn && <td>{group.label}</td>}
+                            {showGroupColumn && (
+                              <td>
+                                {report.groupBy === 'member' ? (
+                                  <span className="report-member report-member--group">
+                                    <Avatar
+                                      name={group.label}
+                                      src={avatarByUserId.get(group.key)}
+                                      size="sm"
+                                    />
+                                    <span className="report-member__name">{group.label}</span>
+                                  </span>
+                                ) : (
+                                  group.label
+                                )}
+                              </td>
+                            )}
                             <td className="num">{group.count}</td>
                             <td className="num tabular">{formatDuration(group.totalSeconds)}</td>
                           </tr>

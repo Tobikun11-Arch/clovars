@@ -3055,6 +3055,10 @@ html.mini-timer-root #root {
   min-width: 0;
 }
 
+.report-member--group {
+  padding-left: 0;
+}
+
 .report-member__name {
   overflow: hidden;
   text-overflow: ellipsis;
