@@ -137,6 +137,13 @@ function sendTimerCommand(command: TimerCommand): void {
   mainWindow.webContents.send('timer:command', command)
 }
 
+// Open = on screen. isVisible() stays true while minimized on Windows, so check both.
+function isMainWindowOpen(): boolean {
+  return Boolean(
+    mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()
+  )
+}
+
 function isMiniTimerVisible(): boolean {
   return Boolean(miniTimerWindow && !miniTimerWindow.isDestroyed() && miniTimerWindow.isVisible())
 }
@@ -218,6 +225,7 @@ function updateTray(): void {
     { label: 'Maximize Clovars', click: () => maximizeWindow() },
     {
       label: isMiniTimerVisible() ? 'Hide Mini Timer' : 'Show Mini Timer',
+      enabled: isMiniTimerVisible() || !isMainWindowOpen(),
       click: () => toggleMiniTimerWindow()
     },
     {
@@ -331,16 +339,23 @@ function createWindow(): void {
     if (timerState.running && miniTimerAutoShow) {
       createMiniTimerWindow()
     }
+    updateTray()
     broadcastMainWindowState()
   })
 
-  mainWindow.on('restore', () => {
-    // Hide mini timer when main window is restored
+  // The mini timer never shows alongside the open main window (restore from
+  // minimize, or show from the tray after close-to-tray).
+  const hideMiniForMainWindow = (): void => {
     if (isMiniTimerVisible()) {
       hideMiniTimerWindow()
+    } else {
+      updateTray()
     }
     broadcastMainWindowState()
-  })
+  }
+  mainWindow.on('restore', hideMiniForMainWindow)
+  mainWindow.on('show', hideMiniForMainWindow)
+  mainWindow.on('hide', () => updateTray())
 
   mainWindow.on('focus', () => {
     broadcastMainWindowState()
@@ -369,6 +384,8 @@ function createWindow(): void {
 }
 
 function createMiniTimerWindow(): void {
+  if (isMainWindowOpen()) return
+
   if (miniTimerWindow && !miniTimerWindow.isDestroyed()) {
     miniTimerWindow.show()
     miniTimerWindow.focus()
